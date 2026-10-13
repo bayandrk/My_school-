@@ -1,42 +1,9 @@
-<!DOCTYPE html>
-<html lang="ar" dir="rtl">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>إضافة طفل جديد</title>
+@extends('layouts.app')
 
-    <!-- Bootstrap 5 RTL CSS -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css">
-    <!-- Bootstrap Icons -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
-    <!-- الخط العربي (Cairo) -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+@section('title', 'إضافة طفل جديد')
 
+@push('styles')
     <style>
-        body {
-            font-family: 'Cairo', sans-serif;
-            background-color: #f8fafc;
-            color: #1e293b;
-        }
-
-        /* النافبار الخضراء للمعلم */
-        .navbar-teacher {
-            background-color: #0d7a5f;
-        }
-
-        /* شارة واسم المدرسة بداخل النافبار */
-        .school-navbar-brand {
-            background-color: rgba(255, 255, 255, 0.12);
-            border: 1px solid rgba(255, 255, 255, 0.25);
-            border-radius: 10px;
-            padding: 0.35rem 0.85rem;
-            color: #ffffff;
-            font-size: 0.875rem;
-            font-weight: 700;
-        }
-
         .main-card {
             border: none;
             border-radius: 16px;
@@ -64,12 +31,12 @@
 
         .form-control:focus, .form-select:focus {
             background-color: #ffffff;
-            border-color: #0d7a5f;
+            border-color: var(--primary-color);
             box-shadow: 0 0 0 3px rgba(13, 122, 95, 0.12);
         }
 
         .btn-save-child {
-            background-color: #0d7a5f;
+            background-color: var(--primary-color);
             color: white;
             font-weight: 700;
             padding: 0.65rem 2rem;
@@ -80,76 +47,15 @@
         }
 
         .btn-save-child:hover {
-            background-color: #0a624c;
+            opacity: 0.9;
             color: white;
             transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(13, 122, 95, 0.2);
         }
     </style>
-</head>
-<body>
+@endpush
 
-    <!-- Navbar مع اسم المدرسة -->
-    <nav class="navbar navbar-expand-lg navbar-dark navbar-teacher py-3 shadow-sm mb-4">
-        <div class="container">
-            <div class="d-flex align-items-center gap-2">
-                <a class="navbar-brand fw-bold fs-4 d-flex align-items-center gap-2 m-0" href="#">
-                    <i class="bi bi-person-badge-fill"></i> لوحة تحكم المعلم
-                </a>
+@section('content')
 
-                <!-- عرض اسم المدرسة الذي أدخله المعلم (سعدالله ونوس) -->
-                <div class="school-navbar-brand d-flex align-items-center gap-2 ms-2">
-                    <i class="bi bi-building-check text-warning fs-5"></i>
-                    <span>
-                        @if(isset($teacher->school_name) && $teacher->school_name)
-                            {{ $teacher->school_name }}
-                        @elseif(auth()->user()->school_name ?? false)
-                            {{ auth()->user()->school_name }}
-                        @elseif(auth()->user()->school && auth()->user()->school->name)
-                            {{ auth()->user()->school->name }}
-                        @else
-                            سعدالله ونوس
-                        @endif
-                    </span>
-                </div>
-            </div>
-
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#teacherNavbar">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-
-            <div class="collapse navbar-collapse" id="teacherNavbar">
-                <ul class="navbar-nav me-auto mb-2 mb-lg-0 fw-semibold">
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ Route::has('teacher.dashboard') ? route('teacher.dashboard') : url('/teacher/dashboard') }}">الرئيسية والمهام</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link active" href="{{ Route::has('teacher.children.create') ? route('teacher.children.create') : url('/teacher/children/create') }}">إضافة طفل</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ Route::has('teacher.classes') ? route('teacher.classes') : url('/teacher/classes') }}">صفوفي وطلابي</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ Route::has('teacher.daily-changes') ? route('teacher.daily-changes') : url('/teacher/daily-changes') }}">السجلات المدخلة</a>
-                    </li>
-                </ul>
-
-                <div class="d-flex align-items-center gap-2">
-                    <a href="{{ Route::has('teacher.profile') ? route('teacher.profile') : url('/teacher/profile') }}" class="btn btn-light btn-sm rounded-2 px-3 fw-bold text-success d-flex align-items-center gap-1">
-                        <i class="bi bi-person-circle"></i> الملف الشخصي
-                    </a>
-                    <form action="{{ Route::has('logout') ? route('logout') : '#' }}" method="POST" class="d-inline">
-                        @csrf
-                        <button type="submit" class="btn btn-outline-light btn-sm rounded-2 px-3 fw-bold">
-                            تسجيل الخروج
-                        </button>
-                    </form>
-                </div>
-            </div>
-        </div>
-    </nav>
-
-    <!-- Main Content -->
     <div class="container pb-5" style="max-width: 900px;">
 
         <!-- رسائل النجاح أو الأخطاء -->
@@ -178,7 +84,7 @@
         <!-- نموذج إضافة طفل جديد -->
         <div class="card main-card">
             <div class="p-3.5 bg-white border-bottom fw-bold d-flex justify-content-between align-items-center">
-                <div class="d-flex align-items-center gap-2 text-success fs-6">
+                <div class="d-flex align-items-center gap-2 text-primary fs-6">
                     <i class="bi bi-person-plus-fill fs-5"></i>
                     <span>إضافة طفل جديد وتخصيص الصف وولي الأمر</span>
                 </div>
@@ -262,8 +168,4 @@
         </div>
 
     </div>
-
-    <!-- Bootstrap 5 JS -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
+@endsection

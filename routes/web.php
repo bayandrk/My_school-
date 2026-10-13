@@ -53,6 +53,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/assign-teacher-class', [ManagerController::class, 'assignTeacherToClass'])->name('assign-teacher-class');
         Route::get('/profile', [ManagerController::class, 'profile'])->name('profile');
         Route::put('/profile', [ManagerController::class, 'updateProfile'])->name('profile.update');
+        Route::put('/profile/branding', [ManagerController::class, 'updateBranding'])->name('update-branding');
         Route::delete('/profile', [ManagerController::class, 'destroyProfile'])->name('profile.destroy');
 
         // الصفحات الخاصة بالصفوف والأساتذة
@@ -66,6 +67,7 @@ Route::middleware('auth')->group(function () {
         Route::delete('/teachers/{teacher}', [ManagerController::class, 'destroyTeacher'])->name('teachers.destroy');
         Route::get('/class-scores', [ManagerController::class, 'classScores'])->name('class.scores');
         Route::get('/class-notes', [ManagerController::class, 'classNotes'])->name('class.notes');
+        
     });
 
     // --------------------------------------

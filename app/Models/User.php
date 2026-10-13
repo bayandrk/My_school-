@@ -27,6 +27,8 @@ class User extends Authenticatable
     'school_name',
     'status',
     'role',
+    'logo',         
+    'primary_color',
     ];
 public function childrenOfParent()
 {

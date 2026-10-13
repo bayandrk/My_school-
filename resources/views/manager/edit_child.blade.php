@@ -1,94 +1,148 @@
-<!DOCTYPE html>
-<html lang="ar" dir="rtl">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>تعديل بيانات الطالب</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css" rel="stylesheet">
-</head>
-<body class="bg-light">
+@extends('layouts.app')
 
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
-        <div class="container">
-            <span class="navbar-brand fw-bold">لوحة إدارة المدرسة</span>
-            <div class="navbar-nav me-auto">
-                <a class="nav-link" href="{{ route('manager.dashboard') }}">المهام والطلبات</a>
-                <a class="nav-link active" href="{{ route('manager.classes') }}">دليل الصفوف</a>
-                <a class="nav-link" href="{{ route('manager.teachers') }}">دليل الأساتذة</a>
-            </div>
-            <form action="{{ route('logout') }}" method="POST" class="d-inline">
-                @csrf
-                <button type="submit" class="btn btn-outline-light btn-sm">تسجيل الخروج</button>
-            </form>
-        </div>
-    </nav>
+@section('title', 'تعديل بيانات الطالب - ' . $child->name)
 
-    <div class="container pb-5">
-        <div class="card shadow-sm border-0">
-            <div class="card-header bg-primary text-white fw-bold py-3">
-                تعديل بيانات الطالب: {{ $child->name }}
-            </div>
-            <div class="card-body p-4">
-                <form action="{{ route('manager.children.update', $child) }}" method="POST" enctype="multipart/form-data">
-                    @csrf
-                    @method('PUT')
+@push('styles')
+    <style>
+        .edit-card {
+            border: none;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+            background: #ffffff;
+            border: 1px solid #f1f5f9;
+            overflow: hidden;
+        }
 
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">اسم الطالب</label>
-                            <input type="text" name="name" class="form-control" value="{{ old('name', $child->name) }}" required>
+        .card-header-custom {
+            background-color: #ffffff;
+            color: #0f172a;
+            border-bottom: 1px solid #f1f5f9;
+            padding: 1.1rem 1.3rem;
+            font-weight: 700;
+        }
+
+        .form-label-custom {
+            font-weight: 700;
+            color: #475569;
+            font-size: 0.875rem;
+            margin-bottom: 0.4rem;
+        }
+
+        .form-control-custom, .form-select-custom {
+            border-radius: 10px;
+            border: 1px solid #cbd5e1;
+            padding: 0.6rem 0.9rem;
+            background-color: #f8fafc;
+            color: #334155;
+            font-weight: 600;
+            font-size: 0.9rem;
+            transition: all 0.2s ease;
+        }
+
+        .form-control-custom:focus, .form-select-custom:focus {
+            background-color: #ffffff;
+            border-color: var(--primary-color) !important;
+            box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 20%, transparent) !important;
+        }
+
+        /* زر الحفظ الملون ديناميكياً حسب لون المدرسة */
+        .btn-save-custom {
+            background-color: var(--primary-color) !important;
+            border-color: var(--primary-color) !important;
+            color: var(--btn-text-color) !important;
+            border-radius: 10px;
+            padding: 0.6rem 1.5rem;
+            font-size: 0.925rem;
+            font-weight: 700;
+            transition: all 0.2s ease;
+        }
+
+        .btn-save-custom:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+            color: var(--btn-text-color) !important;
+        }
+
+        .btn-cancel-custom {
+            border-radius: 10px;
+            padding: 0.6rem 1.5rem;
+            font-size: 0.925rem;
+            font-weight: 700;
+        }
+    </style>
+@endpush
+
+@section('content')
+
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <div class="card edit-card">
+                <div class="card-header card-header-custom d-flex align-items-center gap-2">
+                    <i class="bi bi-pencil-square text-primary fs-5"></i>
+                    <span>تعديل بيانات الطالب: <strong class="text-primary">{{ $child->name }}</strong></span>
+                </div>
+                <div class="card-body p-4">
+                    <form action="{{ route('manager.children.update', $child) }}" method="POST" enctype="multipart/form-data">
+                        @csrf
+                        @method('PUT')
+
+                        <div class="row g-3.5">
+                            <div class="col-md-6">
+                                <label class="form-label form-label-custom">اسم الطالب</label>
+                                <input type="text" name="name" class="form-control form-control-custom" value="{{ old('name', $child->name) }}" required>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label form-label-custom">الجنس</label>
+                                <select name="gender" class="form-select form-select-custom" required>
+                                    <option value="male" {{ $child->gender == 'male' ? 'selected' : '' }}>ذكر</option>
+                                    <option value="female" {{ $child->gender == 'female' ? 'selected' : '' }}>أنثى</option>
+                                </select>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label form-label-custom">العمر (بالسنوات)</label>
+                                <input type="number" name="age" class="form-control form-control-custom" value="{{ old('age', $child->age) }}" required>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label form-label-custom">الصف الدراسي</label>
+                                <input type="text" name="class" class="form-control form-control-custom" value="{{ old('class', $child->class) }}" required>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label form-label-custom">الحالة الصحية</label>
+                                <input type="text" name="health_status" class="form-control form-control-custom" value="{{ old('health_status', $child->health_status) }}" placeholder="مثال: سليم، حك للعيون...">
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label form-label-custom">ولي الأمر</label>
+                                <select name="parent_id" class="form-select form-select-custom">
+                                    <option value="">-- غير محدد --</option>
+                                    @foreach($parents as $parent)
+                                        <option value="{{ $parent->id }}" {{ $child->parent_id == $parent->id ? 'selected' : '' }}>
+                                            {{ $parent->name }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
+
+                            <div class="col-md-12">
+                                <label class="form-label form-label-custom">صورة الطالب (اختياري)</label>
+                                <input type="file" name="image" class="form-control form-control-custom">
+                            </div>
                         </div>
 
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">الجنس</label>
-                            <select name="gender" class="form-select" required>
-                                <option value="male" {{ $child->gender == 'male' ? 'selected' : '' }}>ذكر</option>
-                                <option value="female" {{ $child->gender == 'female' ? 'selected' : '' }}>أنثى</option>
-                            </select>
+                        <div class="mt-4 pt-2 d-flex align-items-center justify-content-end gap-2">
+                            <a href="{{ route('manager.classes') }}" class="btn btn-light btn-cancel-custom border">إلغاء</a>
+                            <button type="submit" class="btn btn-save-custom d-inline-flex align-items-center gap-1.5">
+                                <i class="bi bi-check-lg"></i> حفظ التغييرات
+                            </button>
                         </div>
-
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">العمر</label>
-                            <input type="number" name="age" class="form-control" value="{{ old('age', $child->age) }}" required>
-                        </div>
-
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">الصف</label>
-                            <input type="text" name="class" class="form-control" value="{{ old('class', $child->class) }}" required>
-                        </div>
-
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">الحالة الصحية</label>
-                            <input type="text" name="health_status" class="form-control" value="{{ old('health_status', $child->health_status) }}">
-                        </div>
-
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">ولي الأمر</label>
-                            <select name="parent_id" class="form-select">
-                                <option value="">غير محدد</option>
-                                @foreach($parents as $parent)
-                                    <option value="{{ $parent->id }}" {{ $child->parent_id == $parent->id ? 'selected' : '' }}>
-                                        {{ $parent->name }}
-                                    </option>
-                                @endforeach
-                            </select>
-                        </div>
-
-                        <div class="col-md-12">
-                            <label class="form-label fw-bold">صورة الطالب (اختياري)</label>
-                            <input type="file" name="image" class="form-control">
-                        </div>
-                    </div>
-
-                    <div class="mt-4 text-end">
-                        <button type="submit" class="btn btn-primary px-4 fw-bold">حفظ التغييرات</button>
-                        <a href="{{ route('manager.classes') }}" class="btn btn-secondary px-4">إلغاء</a>
-                    </div>
-                </form>
+                    </form>
+                </div>
             </div>
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
+@endsection

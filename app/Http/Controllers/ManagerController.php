@@ -479,6 +479,28 @@ public function classNotes(Request $request)
 
     return view('manager.class_notes', compact('students', 'className', 'subjects', 'searchName', 'searchSubject'));
 }
+// تحديث إعدادات مظهر المدرسة (اللوغو واللون)
+public function updateBranding(Request $request)
+{
+    $this->checkManager();
+    $manager = Auth::user();
+
+    $request->validate([
+        'logo'          => 'nullable|image|mimes:jpg,jpeg,png,svg|max:2048',
+        'primary_color' => 'required|string|max:7', // مثل #0d6efd
+    ]);
+
+    if ($request->hasFile('logo')) {
+        // رفع اللوغو وتخزينه في مجلد التخزين العام
+        $logoPath = $request->file('logo')->store('school_logos', 'public');
+        $manager->logo = $logoPath;
+    }
+
+    $manager->primary_color = $request->primary_color;
+    $manager->save();
+
+    return redirect()->back()->with('success', 'تم تحديث مظهر المدرسة (اللوغو والألوان) بنجاح.');
+}
 
     private function checkManager()
     {
