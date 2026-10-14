@@ -12,19 +12,43 @@
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
 
     @php
-        // جلب لون المدرسة والشعار ديناميكياً بحسب المستخدم المسجل
+        // جلب لون المدرسة والشعار ديناميكياً بحسب المستخدم المسجل ودوره بكل أمان
         $user = auth()->user();
         if ($user && $user->role === 'manager') {
             $schoolColor = $user->primary_color ?? '#0d7a5f';
             $schoolLogo  = $user->logo;
             $schoolName  = $user->school_name ?? 'سعدالله ونوس';
-        } else {
+        } elseif ($user && $user->role === 'teacher') {
             $manager = \App\Models\User::where('role', 'manager')
                 ->where('school_name', $user->school_name ?? '')
                 ->first();
             $schoolColor = $manager->primary_color ?? '#0d7a5f';
             $schoolLogo  = $manager->logo ?? null;
             $schoolName  = $user->school_name ?? 'سعدالله ونوس';
+        } else {
+            // تخصيص آمن لولي الأمر (Parent) دون أي تأثير على المعلم أو المدير
+            $schoolColor = '#6b21a8';
+            $schoolLogo  = null;
+            $schoolName  = 'النظام المدرسي';
+            if ($user && $user->role === 'parent') {
+                $activeChild = null;
+                if (session()->has('active_child_id')) {
+                    $activeChild = \App\Models\Child::find(session('active_child_id'));
+                }
+                if (!$activeChild) {
+                    $activeChild = \App\Models\Child::where('parent_id', $user->id)->first();
+                }
+                if ($activeChild && !empty($activeChild->school_name)) {
+                    $manager = \App\Models\User::where('role', 'manager')
+                        ->where('school_name', $activeChild->school_name)
+                        ->first();
+                    if ($manager) {
+                        $schoolColor = $manager->primary_color ?? '#6b21a8';
+                        $schoolLogo  = $manager->logo ?? null;
+                        $schoolName  = $manager->school_name;
+                    }
+                }
+            }
         }
 
         // دالة لحساب درجة سطوع اللون واختيار لون النص التلقائي (أسود أو أبيض)
@@ -98,7 +122,7 @@
             flex-shrink: 0;
         }
 
-        /* روابط التنقل الأنيقة المطابقة للمدير والمعلم */
+        /* روابط التنقل الأنيقة */
         .navbar-custom .nav-link {
             color: var(--btn-text-color) !important;
             font-weight: 700;
@@ -221,12 +245,14 @@
                 <a class="app-brand-title d-flex align-items-center gap-2 m-0" href="#">
                     @if(auth()->user()->role === 'manager')
                         لوحة إدارة المدرسة
-                    @else
+                    @elseif(auth()->user()->role === 'teacher')
                         <i class="bi bi-person-badge-fill"></i> لوحة تحكم المعلم
+                    @else
+                        <i class="bi bi-mortarboard-fill"></i> متابعة الأولياء
                     @endif
                 </a>
 
-                <!-- شارة اسم المستخدم/المدرسة وشعار المدرسة (مطابق للمدير والمعلم) -->
+                <!-- شارة اسم المستخدم/المدرسة وشعار المدرسة -->
                 <div class="school-navbar-brand ms-2">
                     @if(!empty($schoolLogo))
                         <img src="{{ asset('storage/' . $schoolLogo) }}" alt="لوغو" class="school-navbar-logo">
@@ -254,7 +280,7 @@
                         <li class="nav-item">
                             <a class="nav-link {{ request()->routeIs('manager.teachers') ? 'active' : '' }}" href="{{ route('manager.teachers') }}">دليل الأساتذة</a>
                         </li>
-                    @else
+                    @elseif(auth()->user()->role === 'teacher')
                         <li class="nav-item">
                             <a class="nav-link {{ request()->routeIs('teacher.dashboard') ? 'active' : '' }}" href="{{ route('teacher.dashboard') }}">الرئيسية والمهام</a>
                         </li>
@@ -267,11 +293,13 @@
                         <li class="nav-item">
                             <a class="nav-link {{ request()->routeIs('teacher.daily-changes') ? 'active' : '' }}" href="{{ route('teacher.daily-changes') }}">السجلات المدخلة</a>
                         </li>
+                    @else
+                        <!-- ولي الأمر -->
                     @endif
                 </ul>
 
                 <div class="d-flex align-items-center gap-2">
-                    <a href="{{ auth()->user()->role === 'manager' ? route('manager.profile') : route('teacher.profile') }}" class="btn btn-nav-profile">
+                    <a href="{{ auth()->user()->role === 'manager' ? route('manager.profile') : (auth()->user()->role === 'teacher' ? route('teacher.profile') : route('parent.profile')) }}" class="btn btn-nav-profile">
                         <i class="bi bi-person-circle me-1"></i> الملف الشخصي
                     </a>
                     <form action="{{ route('logout') }}" method="POST" class="d-inline">
