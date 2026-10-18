@@ -175,12 +175,7 @@
                             </div>
                         </div>
 
-                        <div class="d-flex justify-content-between align-items-center mt-4 pt-2">
-                            <!-- زر حذف الحساب الشخصي -->
-                            <button type="button" class="btn btn-outline-danger btn-sm rounded-2 fw-semibold px-3 py-2" data-bs-toggle="modal" data-bs-target="#deleteParentModal">
-                                <i class="bi bi-trash me-1"></i> حذف حسابي الشخصي
-                            </button>
-
+                        <div class="d-flex justify-content-end align-items-center mt-4 pt-2">
                             <!-- زر الحفظ -->
                             <button type="submit" class="btn btn-save-custom">
                                 <i class="bi bi-check-lg me-1"></i> حفظ التعديلات
@@ -190,30 +185,6 @@
                 </div>
             </div>
 
-        </div>
-    </div>
-</div>
-
-<!-- نافذة تأكيد حذف حساب ولي الأمر (Modal) -->
-<div class="modal fade" id="deleteParentModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content rounded-4 p-2">
-            <div class="modal-header border-0 pb-0">
-                <h6 class="modal-title fw-bold text-dark">تأكيد حذف الحساب</h6>
-                <button type="button" class="btn-close ms-0 me-auto" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <p class="text-danger fw-bold mb-1">هل أنت متأكد من رغبتك في حذف حسابك كولي أمر؟</p>
-                <p class="text-muted small mb-0">ملاحظة: سيتم حذف حسابك نهائياً من النظام.</p>
-            </div>
-            <div class="modal-footer border-0">
-                <button type="button" class="btn btn-light btn-sm px-3 rounded-2" data-bs-dismiss="modal">إلغاء</button>
-                <form action="{{ route('parent.profile.destroy') ?? '#' }}" method="POST" class="d-inline">
-                    @csrf
-                    @method('DELETE')
-                    <button type="submit" class="btn btn-danger btn-sm px-3 rounded-2 fw-bold">نعم، احذف حسابي</button>
-                </form>
-            </div>
         </div>
     </div>
 </div>

@@ -62,13 +62,6 @@
             transform: translateY(-1px);
             color: var(--btn-text-color) !important;
         }
-
-        .btn-cancel-custom {
-            border-radius: 10px;
-            padding: 0.6rem 1.5rem;
-            font-size: 0.925rem;
-            font-weight: 700;
-        }
     </style>
 @endpush
 
@@ -154,12 +147,7 @@
                             </div>
                         </div>
 
-                        <div class="d-flex justify-content-between align-items-center mt-4 pt-2">
-                            <!-- زر حذف الحساب الشخصي -->
-                            <button type="button" class="btn btn-outline-danger btn-cancel-custom fw-bold" data-bs-toggle="modal" data-bs-target="#deleteTeacherModal">
-                                <i class="bi bi-trash me-1"></i> حذف حسابي الشخصي
-                            </button>
-
+                        <div class="d-flex justify-content-end align-items-center mt-4 pt-2">
                             <!-- زر الحفظ -->
                             <button type="submit" class="btn btn-save-custom">
                                 <i class="bi bi-check-lg me-1"></i> حفظ التعديلات
@@ -169,30 +157,6 @@
                 </div>
             </div>
 
-        </div>
-    </div>
-</div>
-
-<!-- نافذة تأكيد حذف حساب المعلم (Modal) -->
-<div class="modal fade" id="deleteTeacherModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content rounded-4 p-2">
-            <div class="modal-header border-0 pb-0">
-                <h6 class="modal-title fw-bold text-dark">تأكيد حذف الحساب</h6>
-                <button type="button" class="btn-close ms-0 me-auto" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <p class="text-danger fw-bold mb-1">هل أنت متأكد من رغبتك في حذف حسابك الشخصي كمعلم؟</p>
-                <p class="text-muted small mb-0">ملاحظة: سيتم حذف حسابك نهائياً من النظام.</p>
-            </div>
-            <div class="modal-footer border-0">
-                <button type="button" class="btn btn-light btn-sm px-3 rounded-2" data-bs-dismiss="modal">إلغاء</button>
-                <form action="{{ route('teacher.profile.destroy') ?? '#' }}" method="POST" class="d-inline">
-                    @csrf
-                    @method('DELETE')
-                    <button type="submit" class="btn btn-danger btn-sm px-3 rounded-2 fw-bold">نعم، احذف حسابي</button>
-                </form>
-            </div>
         </div>
     </div>
 </div>

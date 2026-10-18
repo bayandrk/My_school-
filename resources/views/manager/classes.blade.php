@@ -87,37 +87,44 @@
                 <i class="bi bi-journal-bookmark-fill text-primary"></i> دليل الصفوف والطلاب
             </h5>
 
-            <!-- فلاتر البحث والتصفية -->
-            <form action="{{ route('manager.classes') }}" method="GET" class="d-flex align-items-center gap-2 flex-wrap">
-                <!-- العام الدراسي -->
-                <select name="year" class="form-select form-select-sm fw-semibold" onchange="this.form.submit()" style="width: 110px;">
-                    @foreach($availableYears as $year)
-                        <option value="{{ $year }}" {{ ($selectedYear ?? '') == $year ? 'selected' : '' }}>
-                            {{ $year }}
-                        </option>
-                    @endforeach
-                </select>
+            <!-- فلاتر البحث والتصفية مع زر الأرشيف -->
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <form action="{{ route('manager.classes') }}" method="GET" class="d-flex align-items-center gap-2 flex-wrap m-0">
+                    <!-- العام الدراسي -->
+                    <select name="year" class="form-select form-select-sm fw-semibold" onchange="this.form.submit()" style="width: 110px;">
+                        @foreach($availableYears as $year)
+                            <option value="{{ $year }}" {{ ($selectedYear ?? '') == $year ? 'selected' : '' }}>
+                                {{ $year }}
+                            </option>
+                        @endforeach
+                    </select>
 
-                <!-- تصفية حسب الصف -->
-                <select name="class_filter" class="form-select form-select-sm fw-semibold" onchange="this.form.submit()" style="width: 130px;">
-                    <option value="">كل الصفوف</option>
-                    @foreach($allClassesList ?? [] as $cls)
-                        <option value="{{ $cls }}" {{ (request('class_filter') == $cls) ? 'selected' : '' }}>
-                            {{ $cls }}
-                        </option>
-                    @endforeach
-                </select>
+                    <!-- تصفية حسب الصف -->
+                    <select name="class_filter" class="form-select form-select-sm fw-semibold" onchange="this.form.submit()" style="width: 130px;">
+                        <option value="">كل الصفوف</option>
+                        @foreach($allClassesList ?? [] as $cls)
+                            <option value="{{ $cls }}" {{ (request('class_filter') == $cls) ? 'selected' : '' }}>
+                                {{ $cls }}
+                            </option>
+                        @endforeach
+                    </select>
 
-                <!-- تصفية حسب اسم الطالب -->
-                <div class="input-group input-group-sm" style="width: 210px;">
-                    <input type="text" name="search_student" class="form-control form-control-sm" placeholder="بحث باسم الطالب..." value="{{ request('search_student') }}">
-                    <button class="btn btn-search-school fw-bold" type="submit"><i class="bi bi-search"></i></button>
-                </div>
-                
-                @if(request('search_student') || request('class_filter'))
-                    <a href="{{ route('manager.classes') }}" class="btn btn-outline-secondary btn-sm-custom">إلغاء</a>
-                @endif
-            </form>
+                    <!-- تصفية حسب اسم الطالب -->
+                    <div class="input-group input-group-sm" style="width: 210px;">
+                        <input type="text" name="search_student" class="form-control form-control-sm" placeholder="بحث باسم الطالب..." value="{{ request('search_student') }}">
+                        <button class="btn btn-search-school fw-bold" type="submit"><i class="bi bi-search"></i></button>
+                    </div>
+                    
+                    @if(request('search_student') || request('class_filter'))
+                        <a href="{{ route('manager.classes') }}" class="btn btn-outline-secondary btn-sm-custom">إلغاء</a>
+                    @endif
+                </form>
+
+                <!-- زر الانتقال لصفحة أرشيف الطلاب -->
+                <a href="{{ route('manager.children.archived') }}" class="btn btn-outline-danger btn-sm-custom d-flex align-items-center gap-1">
+                    <i class="bi bi-box-archive-fill"></i> أرشيف الطلاب
+                </a>
+            </div>
         </div>
     </div>
 
@@ -244,12 +251,12 @@
                                         </td>
                                         <td>
                                             <div class="d-flex justify-content-center">
-                                                <form action="{{ route('manager.children.destroy', $student) }}" method="POST" onsubmit="return confirm('هل أنت متأكد من رغبتك في حذف الطالب {{ $student->name }}؟');">
+                                                <!-- تم استبدال الحذف بزر الأرشفة الآمن -->
+                                                <form action="{{ route('manager.children.archive', $student->id) }}" method="POST" onsubmit="return confirm('هل أنت متأكد من رغبتك في أرشفة ونقل الطالب {{ $student->name }} إلى الأرشيف؟');">
                                                     @csrf
-                                                    @method('DELETE')
-                                                    <!-- زر الحذف باللون الديناميكي -->
+                                                    @method('PATCH')
                                                     <button type="submit" class="btn btn-sm-custom btn-school-dynamic py-1 px-2.5">
-                                                        <i class="bi bi-trash me-1"></i> حذف
+                                                        <i class="bi bi-box-arrow-down me-1"></i> أرشفة
                                                     </button>
                                                 </form>
                                             </div>

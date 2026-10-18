@@ -5,7 +5,7 @@
 @php
     $schoolColor = $child->manager?->primary_color;
     if (!is_string($schoolColor) || !preg_match('/^#[0-9A-Fa-f]{6}$/', $schoolColor)) {
-        $schoolColor = '#0d7a5f'; // لون أخضر افتراضي للمدرسة في حال لم يتم تحديد لون
+        $schoolColor = '#0d7a5f';
     }
 @endphp
 
@@ -17,7 +17,6 @@
             --btn-text-color: #ffffff;
         }
 
-        /* فرض اللون على النافبار العلوي الخاص بالموقع بالكامل لهذه الصفحة */
         .navbar-custom, .navbar-parent, nav.navbar {
             background-color: var(--primary-color) !important;
         }
@@ -108,13 +107,31 @@
             background-color: var(--primary-color) !important;
             color: white !important;
         }
+
+        .btn-send-custom {
+            background-color: var(--primary-color) !important;
+            color: var(--btn-text-color) !important;
+            font-weight: 700;
+            border-radius: 8px;
+        }
+
+        .btn-send-custom:hover {
+            opacity: 0.9;
+        }
     </style>
 @endpush
 
 @section('content')
 
-<!-- تمرير اللون مباشرة لعنصر الجذع لضمان استجابة كافة الأجزاء -->
 <div class="container pb-5" style="--primary-color: {{ $schoolColor }};">
+
+    <!-- تنبيهات النجاح والأخطاء -->
+    @if(session('success'))
+        <div class="alert alert-success alert-dismissible fade show fw-bold rounded-3 mb-3 py-2 shadow-sm" role="alert">
+            <i class="bi bi-check-circle-fill me-2"></i> {{ session('success') }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    @endif
 
     <!-- شريط العودة العلوي -->
     <div class="d-flex justify-content-between align-items-center mb-4 pb-2 border-bottom">
@@ -148,10 +165,15 @@
                 </div>
             </div>
 
-            <div class="d-flex gap-2">
+            <div class="d-flex gap-2 align-items-center">
                 <span class="badge px-3 py-2 rounded-pill fw-bold" style="background-color: color-mix(in srgb, var(--primary-color) 12%, #ffffff) !important; color: var(--primary-color) !important; border: 1px solid color-mix(in srgb, var(--primary-color) 25%, transparent) !important;">
                     الجنس: {{ isset($child->gender) ? ($child->gender == 'male' ? 'ذكر' : 'أنثى') : '-' }}
                 </span>
+
+                <!-- زر إرسال ملاحظة للأستاذ -->
+                <button type="button" class="btn btn-send-custom btn-sm px-3 py-2 rounded-pill d-flex align-items-center gap-1 shadow-sm" data-bs-toggle="modal" data-bs-target="#sendNoteModal">
+                    <i class="bi bi-send-plus-fill"></i> إرسال ملاحظة لأستاذ
+                </button>
             </div>
         </div>
 
@@ -194,6 +216,94 @@
                         @endforelse
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- كرت ملاحظات ولي الأمر وردود المعلمة -->
+    <div class="card card-custom mb-4 p-4">
+        <div class="d-flex align-items-center justify-content-between mb-3 border-bottom pb-2">
+            <h6 class="fw-bold text-dark mb-0 d-flex align-items-center gap-2">
+                <i class="bi bi-chat-left-quote-fill" style="color: var(--primary-color);"></i> ملاحظتك الخاصة وتوجيهاتك للمدرسة
+            </h6>
+            @if(!empty($child->parent_note))
+                <span class="text-muted" style="font-size: 0.75rem;">
+                    <i class="bi bi-clock me-1"></i> آخر تحديث: {{ $child->updated_at?->diffForHumans() }}
+                </span>
+            @endif
+        </div>
+
+        @if(!empty($child->parent_note))
+            <div class="p-3 rounded-3 mb-3" style="background-color: #f8fafc; border: 1px solid #e2e8f0;">
+                <span class="small fw-bold d-block mb-1" style="color: var(--primary-color);">نص الملاحظة المرسلة:</span>
+                <p class="fw-semibold text-dark mb-0 small" style="white-space: pre-line;">
+                    {{ $child->parent_note }}
+                </p>
+            </div>
+        @else
+            <p class="text-muted small mb-3">لم تقم بإضافة ملاحظة خاصة لهذا الطالب بعد. يمكنك إرسال ملاحظة عبر زر "إرسال ملاحظة لأستاذ" أعلاه.</p>
+        @endif
+
+        <!-- رد المعلمة إن وجد -->
+        @if(!empty($child->teacher_reply))
+            <div class="p-3 rounded-3 bg-white border-start border-4 border-success shadow-sm">
+                <h6 class="fw-bold text-success mb-2 d-flex align-items-center gap-2 small">
+                    <i class="bi bi-reply-fill fs-5"></i> رد المعلمة:
+                </h6>
+                <p class="mb-0 text-dark small fw-semibold" style="white-space: pre-line;">
+                    {{ $child->teacher_reply }}
+                </p>
+            </div>
+        @endif
+    </div>
+
+    <!-- Modal إرسال ملاحظة للأستاذ -->
+    <div class="modal fade" id="sendNoteModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow rounded-4">
+                <div class="modal-header border-bottom pb-2">
+                    <h6 class="fw-bold text-dark mb-0 d-flex align-items-center gap-2">
+                        <i class="bi bi-chat-left-dots-fill text-primary"></i> إرسال ملاحظة لكادر التدريس
+                    </h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form action="{{ route('parent.send-teacher-note', $child->id) }}" method="POST">
+                    @csrf
+                    <div class="modal-body py-3">
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold text-muted mb-1">اختر الأستاذ المستهدف (أو أكثر):</label>
+                            <div class="border rounded-3 p-2 bg-light" style="max-height: 120px; overflow-y: auto;">
+                                <div class="form-check mb-1">
+                                    <input class="form-check-input" type="checkbox" id="selectAllTeachers" onclick="toggleAllTeachers(this)">
+                                    <label class="form-check-label small fw-bold text-primary" for="selectAllTeachers">
+                                        تحديد جميع الأساتذة المدرسين
+                                    </label>
+                                </div>
+                                <hr class="my-1 text-muted opacity-25">
+                                @forelse($child->teachers ?? [] as $teacher)
+                                    <div class="form-check">
+                                        <input class="form-check-input teacher-checkbox" type="checkbox" name="teacher_ids[]" value="{{ $teacher->id }}" id="teacher_{{ $teacher->id }}">
+                                        <label class="form-check-label small fw-semibold text-dark" for="teacher_{{ $teacher->id }}">
+                                            {{ $teacher->name }}
+                                        </label>
+                                    </div>
+                                @empty
+                                    <span class="text-muted small d-block py-1">لا يوجد أساتذة معينين لهذا الطالب.</span>
+                                @endforelse
+                            </div>
+                        </div>
+
+                        <div class="mb-2">
+    <label class="form-label small fw-bold text-muted mb-1">نص الملاحظة أو التنبيه:</label>
+    <textarea name="note" class="form-control form-control-sm rounded-3" rows="3" placeholder="اكتب الملاحظة الجديدة التي ترغب بإرسالها للأستاذ هنا..." required></textarea>
+</div>
+                    </div>
+
+                    <div class="modal-footer border-top pt-2">
+                        <button type="button" class="btn btn-secondary btn-sm rounded-pill px-3" data-bs-dismiss="modal">إلغاء</button>
+                        <button type="submit" class="btn btn-send-custom btn-sm rounded-pill px-4">إرسال الملاحظة</button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
@@ -258,5 +368,16 @@
     </div>
 
 </div>
+
+@push('scripts')
+<script>
+    function toggleAllTeachers(source) {
+        var checkboxes = document.getElementsByClassName('teacher-checkbox');
+        for(var i = 0; i < checkboxes.length; i++) {
+            checkboxes[i].checked = source.checked;
+        }
+    }
+</script>
+@endpush
 
 @endsection

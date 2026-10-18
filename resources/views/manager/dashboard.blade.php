@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'لوحة تحكم المدير - المهام والطلبات')
+@section('title', 'لوحة تحكم المدير - الطلبات المعلقة')
 
 @push('styles')
     <style>
@@ -10,9 +10,8 @@
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
             background: #ffffff;
             border: 1px solid #f1f5f9;
-            overflow: hidden;
+            margin-bottom: 1.5rem;
         }
-
         .stat-card {
             border: none;
             border-radius: 14px;
@@ -20,14 +19,7 @@
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.02);
             padding: 1.1rem 1.3rem;
             border: 1px solid #f1f5f9;
-            transition: transform 0.2s ease;
         }
-
-        .stat-card:hover {
-            transform: translateY(-2px);
-        }
-
-        /* أيقونات الإحصائيات تتكيف ديناميكياً مع لون المدرسة */
         .stat-icon {
             width: 46px;
             height: 46px;
@@ -40,34 +32,15 @@
             color: var(--primary-color) !important;
             border: 1px solid color-mix(in srgb, var(--primary-color) 25%, transparent) !important;
         }
-
         .card-header-custom {
             background-color: #ffffff;
             color: #0f172a;
             border-bottom: 1px solid #f1f5f9;
             padding: 1rem 1.25rem;
             font-weight: 700;
+            border-top-left-radius: 16px;
+            border-top-right-radius: 16px;
         }
-
-        /* زر التأكيد الرئيسي */
-        .btn-assign-custom {
-            background-color: var(--primary-color) !important;
-            border-color: var(--primary-color) !important;
-            color: var(--btn-text-color) !important;
-            border-radius: 10px;
-            padding: 0.65rem 1.25rem;
-            font-size: 0.95rem;
-            font-weight: 700;
-            transition: all 0.2s ease;
-        }
-
-        .btn-assign-custom:hover {
-            opacity: 0.9;
-            transform: translateY(-1px);
-            color: var(--btn-text-color) !important;
-        }
-
-        /* زر الموافقة الملون ديناميكياً */
         .btn-action-approve {
             background-color: color-mix(in srgb, var(--primary-color) 15%, #ffffff) !important;
             border: 1.5px solid var(--primary-color) !important;
@@ -76,20 +49,16 @@
             border-radius: 8px !important;
             padding: 0.35rem 0.85rem !important;
             font-size: 0.825rem !important;
-            transition: all 0.2s ease;
             min-width: 85px;
             display: inline-flex;
             align-items: center;
             justify-content: center;
             gap: 4px;
         }
-
         .btn-action-approve:hover {
             background-color: var(--primary-color) !important;
             color: var(--btn-text-color) !important;
         }
-
-        /* زر الرفض */
         .btn-action-reject {
             background-color: #ffffff !important;
             border: 1.5px solid #ef4444 !important;
@@ -98,33 +67,15 @@
             border-radius: 8px !important;
             padding: 0.35rem 0.85rem !important;
             font-size: 0.825rem !important;
-            transition: all 0.2s ease;
             min-width: 85px;
             display: inline-flex;
             align-items: center;
             justify-content: center;
             gap: 4px;
         }
-
         .btn-action-reject:hover {
             background-color: #ef4444 !important;
             color: #ffffff !important;
-        }
-
-        .form-select-custom, .form-control-custom {
-            border-radius: 10px;
-            border: 1px solid #cbd5e1;
-            padding: 0.55rem 0.85rem;
-            background-color: #f8fafc;
-            color: #334155;
-            font-weight: 600;
-            font-size: 0.9rem;
-        }
-
-        .form-select-custom:focus, .form-control-custom:focus {
-            background-color: #ffffff;
-            border-color: var(--primary-color) !important;
-            box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 20%, transparent) !important;
         }
     </style>
 @endpush
@@ -146,13 +97,23 @@
         </div>
     @endif
 
-    <!-- كروت الإحصائيات السريعة -->
+    <!-- الهيدر العلوي وزر الانتقال لصفحة التعيينات المستقلة -->
+    <div class="mb-4 d-flex justify-content-between align-items-center">
+        <h5 class="fw-bold text-dark mb-0">لوحة التحكم والطلبات المعلقة</h5>
+        <a href="{{ route('manager.assignments') }}" class="btn fw-bold px-4 py-2 rounded-pill shadow-sm" style="background-color: var(--primary-color); color: var(--btn-text-color);">
+            <i class="bi bi-journal-code me-1"></i> إدارة تعيينات الأساتذة والصفوف
+        </a>
+    </div>
+
+    <!-- كروت الإحصائيات -->
     <div class="row g-3 mb-4">
         <div class="col-md-6">
             <div class="stat-card d-flex align-items-center justify-content-between">
                 <div>
                     <span class="text-muted small fw-bold d-block mb-1">طلبات الانضمام المعلقة</span>
-                    <h4 class="fw-bold text-dark mb-0">{{ $pendingTeachers->count() }}</h4>
+                    <h4 class="fw-bold text-dark mb-0">
+                        {{ method_exists($pendingTeachers, 'total') ? $pendingTeachers->total() : $pendingTeachers->count() }}
+                    </h4>
                 </div>
                 <div class="stat-icon">
                     <i class="bi bi-clock-history"></i>
@@ -172,8 +133,8 @@
         </div>
     </div>
 
+    <!-- جدول الطلبات المعلقة -->
     <div class="row g-4">
-        <!-- 1. طلبات الانضمام المعلقة -->
         <div class="col-12">
             <div class="card dashboard-card">
                 <div class="card-header card-header-custom d-flex justify-content-between align-items-center">
@@ -181,7 +142,7 @@
                         <i class="bi bi-person-plus-fill text-primary"></i> طلبات انضمام الأساتذة المعلقة
                     </span>
                     <span class="badge bg-primary bg-opacity-10 text-primary px-3 py-1.5 rounded-pill small fw-bold">
-                        {{ $pendingTeachers->count() }}
+                        {{ method_exists($pendingTeachers, 'total') ? $pendingTeachers->total() : $pendingTeachers->count() }}
                     </span>
                 </div>
                 <div class="card-body p-3">
@@ -208,12 +169,15 @@
                                 <tbody>
                                     @foreach($pendingTeachers as $index => $teacher)
                                         <tr>
-                                            <td class="fw-bold text-muted">{{ $index + 1 }}</td>
+                                            <td class="fw-bold text-muted">
+                                                {{ method_exists($pendingTeachers, 'firstItem') ? $pendingTeachers->firstItem() + $index : $index + 1 }}
+                                            </td>
                                             <td class="text-start ps-3 fw-bold text-dark">{{ $teacher->name }}</td>
                                             <td class="text-secondary">{{ $teacher->email }}</td>
                                             <td class="text-secondary">{{ $teacher->phone ?? '-' }}</td>
                                             <td>
                                                 <div class="d-flex justify-content-center align-items-center gap-3">
+                                                    <!-- زر الموافقة -->
                                                     <form action="{{ route('manager.teachers.approve', $teacher->id) }}" method="POST" class="m-0">
                                                         @csrf
                                                         @method('PATCH')
@@ -221,6 +185,7 @@
                                                             <i class="bi bi-check-lg"></i> موافقة
                                                         </button>
                                                     </form>
+                                                    <!-- زر الرفض -->
                                                     <form action="{{ route('manager.teachers.reject', $teacher->id) }}" method="POST" class="m-0">
                                                         @csrf
                                                         @method('DELETE')
@@ -235,50 +200,14 @@
                                 </tbody>
                             </table>
                         </div>
+
+                        <!-- الترقيم -->
+                        @if(method_exists($pendingTeachers, 'hasPages') && $pendingTeachers->hasPages())
+                            <div class="d-flex justify-content-center p-3 border-top">
+                                {{ $pendingTeachers->links('pagination::bootstrap-5') }}
+                            </div>
+                        @endif
                     @endif
-                </div>
-            </div>
-        </div>
-
-        <!-- 2. تعيين أستاذ لصف دراسي -->
-        <div class="col-12">
-            <div class="card dashboard-card">
-                <div class="card-header card-header-custom d-flex align-items-center gap-2 text-dark fw-bold">
-                    <i class="bi bi-check2-square text-primary"></i> تعيين أستاذ لصف دراسي
-                </div>
-                <div class="card-body p-4">
-                    <form action="{{ route('manager.assign-teacher-class') }}" method="POST">
-                        @csrf
-                        <div class="row g-3">
-                            <div class="col-md-6">
-                                <label class="form-label fw-bold small text-secondary mb-1">اختر الأستاذ:</label>
-                                <select name="teacher_id" class="form-select form-select-custom" required>
-                                    <option value="">-- اختر الأستاذ --</option>
-                                    @foreach($approvedTeachers as $teacher)
-                                        <option value="{{ $teacher->id }}">{{ $teacher->name }} ({{ $teacher->email }})</option>
-                                    @endforeach
-                                </select>
-                            </div>
-
-                            <div class="col-md-6">
-                                <label class="form-label fw-bold small text-secondary mb-1">اختر الصف الدراسي:</label>
-                                <select name="class_name" class="form-select form-select-custom" required>
-                                    <option value="">-- اختر الصف --</option>
-                                    @isset($classesList)
-                                        @foreach($classesList as $className)
-                                            <option value="{{ $className }}">{{ $className }}</option>
-                                        @endforeach
-                                    @endisset
-                                </select>
-                            </div>
-                        </div>
-
-                        <div class="mt-4">
-                            <button type="submit" class="btn btn-assign-custom w-100 d-flex align-items-center justify-content-center gap-2">
-                                <i class="bi bi-person-check-fill"></i> تأكيد تعيين الأستاذ للصف
-                            </button>
-                        </div>
-                    </form>
                 </div>
             </div>
         </div>

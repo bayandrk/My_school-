@@ -12,6 +12,7 @@ protected $fillable = [
         'recorded_at',
         'subject',
         'note',
+    
         'score',
     ];
     public function child()

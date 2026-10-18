@@ -7,26 +7,47 @@ use Illuminate\Http\Request;
 
 class AdminController extends Controller
 {
-    // عرض لوحة تحكم الأدمن (الطلبات المعلقة + المفعلون + عداد غير المفعلين)
-    public function dashboard()
+    // عرض لوحة تحكم الأدمن (الطلبات المعلقة + المفعلون + البحث + الترقيم 10 بـ 10)
+    public function dashboard(Request $request)
     {
         $this->checkAdmin();
 
-        $pendingManagers = User::where('role', 'manager')
-            ->where('status', 'pending')
-            ->latest()
-            ->get();
+        $search = $request->input('search');
 
-        $approvedManagers = User::where('role', 'manager')
-            ->where('status', 'approved')
-            ->latest()
-            ->get();
+        // 1. طلبات تسجيل المدراء المعلقة
+        $pendingManagersQuery = User::where('role', 'manager')
+            ->where('status', 'pending');
 
+        if ($search) {
+            $pendingManagersQuery->where(function($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('school_name', 'like', "%{$search}%");
+            });
+        }
+
+        $pendingManagers = $pendingManagersQuery->latest()->get();
+
+        // 2. قائمة المدراء المفعلين (مع البحث والترقيم 10 بـ 10)
+        $approvedManagersQuery = User::where('role', 'manager')
+            ->where('status', 'approved');
+
+        if ($search) {
+            $approvedManagersQuery->where(function($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('school_name', 'like', "%{$search}%");
+            });
+        }
+
+        $approvedManagers = $approvedManagersQuery->latest()
+            ->paginate(10)
+            ->appends($request->all());
+
+        // 3. عداد المدراء غير المفعلين
         $deactivatedCount = User::where('role', 'manager')
             ->where('status', 'deactivated')
             ->count();
 
-        return view('admin.dashboard', compact('pendingManagers', 'approvedManagers', 'deactivatedCount'));
+        return view('admin.dashboard', compact('pendingManagers', 'approvedManagers', 'deactivatedCount', 'search'));
     }
 
     // الموافقة على طلب مدير

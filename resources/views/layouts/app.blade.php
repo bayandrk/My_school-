@@ -14,23 +14,23 @@
     @php
         // جلب لون المدرسة والشعار ديناميكياً بحسب المستخدم المسجل ودوره بكل أمان
         $user = auth()->user();
-        if ($user && $user->role === 'manager') {
-            $schoolColor = $user->primary_color ?? '#0d7a5f';
-            $schoolLogo  = $user->logo;
-            $schoolName  = $user->school_name ?? 'سعدالله ونوس';
-        } elseif ($user && $user->role === 'teacher') {
-            $manager = \App\Models\User::where('role', 'manager')
-                ->where('school_name', $user->school_name ?? '')
-                ->first();
-            $schoolColor = $manager->primary_color ?? '#0d7a5f';
-            $schoolLogo  = $manager->logo ?? null;
-            $schoolName  = $user->school_name ?? 'سعدالله ونوس';
-        } else {
-            // تخصيص آمن لولي الأمر (Parent) دون أي تأثير على المعلم أو المدير
-            $schoolColor = '#6b21a8';
-            $schoolLogo  = null;
-            $schoolName  = 'النظام المدرسي';
-            if ($user && $user->role === 'parent') {
+        $schoolColor = '#6b21a8';
+        $schoolLogo  = null;
+        $schoolName  = 'النظام المدرسي';
+
+        if ($user) {
+            if ($user->role === 'manager') {
+                $schoolColor = $user->primary_color ?? '#0d7a5f';
+                $schoolLogo  = $user->logo;
+                $schoolName  = !empty($user->school_name) ? $user->school_name : 'سعدالله ونوس';
+            } elseif ($user->role === 'teacher') {
+                $manager = \App\Models\User::where('role', 'manager')
+                    ->where('school_name', $user->school_name ?? '')
+                    ->first();
+                $schoolColor = $manager->primary_color ?? '#0d7a5f';
+                $schoolLogo  = $manager->logo ?? null;
+                $schoolName  = !empty($user->school_name) ? $user->school_name : ($manager->school_name ?? 'سعدالله ونوس');
+            } elseif ($user->role === 'parent') {
                 $activeChild = null;
                 if (session()->has('active_child_id')) {
                     $activeChild = \App\Models\Child::find(session('active_child_id'));
@@ -46,6 +46,8 @@
                         $schoolColor = $manager->primary_color ?? '#6b21a8';
                         $schoolLogo  = $manager->logo ?? null;
                         $schoolName  = $manager->school_name;
+                    } else {
+                        $schoolName = $activeChild->school_name;
                     }
                 }
             }
@@ -95,7 +97,7 @@
             text-decoration: none;
         }
 
-        /* شارة اسم المستخدم واسم المدرسة والشعار داخل النافبار */
+        /* شارة اسم المدرسة والشعار داخل النافبار */
         .school-navbar-brand {
             background-color: rgba(255, 255, 255, 0.18);
             border: 1px solid rgba(255, 255, 255, 0.3);
@@ -252,14 +254,14 @@
                     @endif
                 </a>
 
-                <!-- شارة اسم المستخدم/المدرسة وشعار المدرسة -->
+                <!-- شارة اسم المدرسة والشعار داخل النافبار -->
                 <div class="school-navbar-brand ms-2">
                     @if(!empty($schoolLogo))
                         <img src="{{ asset('storage/' . $schoolLogo) }}" alt="لوغو" class="school-navbar-logo">
                     @else
-                        <i class="bi bi-person-circle fs-6"></i>
+                        <i class="bi bi-building fs-6"></i>
                     @endif
-                    <span>{{ auth()->user()->name }}</span>
+                    <span>{{ $schoolName }}</span>
                 </div>
             </div>
 
@@ -293,12 +295,103 @@
                         <li class="nav-item">
                             <a class="nav-link {{ request()->routeIs('teacher.daily-changes') ? 'active' : '' }}" href="{{ route('teacher.daily-changes') }}">السجلات المدخلة</a>
                         </li>
+                        <!-- صفحة ملاحظات الأهل الجديدة للآنسة -->
+                        <li class="nav-item">
+                            <a class="nav-link {{ request()->routeIs('teacher.parent-notes') ? 'active' : '' }}" href="{{ route('teacher.parent-notes') }}">ملاحظات الأهل</a>
+                        </li>
                     @else
                         <!-- ولي الأمر -->
                     @endif
                 </ul>
 
                 <div class="d-flex align-items-center gap-2">
+                    
+                    <!-- 🔔 نظام إشعارات المعلم داخل النافبار -->
+                    @if(auth()->check() && auth()->user()->role === 'teacher')
+                        @php
+                            $unreadTeacherNotifications = auth()->user()->unreadNotifications;
+                        @endphp
+                        <div class="dropdown me-1">
+                            <button class="btn btn-nav-profile position-relative" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="إشعارات المعلم">
+                                <i class="bi bi-bell-fill fs-6"></i>
+                                @if($unreadTeacherNotifications->count() > 0)
+                                    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size: 0.6rem;">
+                                        {{ $unreadTeacherNotifications->count() }}
+                                    </span>
+                                @endif
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0 rounded-3 mt-2 p-2" style="width: 320px; max-height: 400px; overflow-y: auto;">
+                                <li class="dropdown-header fw-bold text-dark border-bottom pb-2 d-flex justify-content-between align-items-center">
+                                    <span><i class="bi bi-bell text-primary me-1"></i> إشعارات المعلم</span>
+                                    <span class="badge bg-primary bg-opacity-10 text-primary small">{{ $unreadTeacherNotifications->count() }} غير مقروء</span>
+                                </li>
+                                
+                                @forelse(auth()->user()->notifications->take(10) as $notification)
+                                    <li>
+                                        <a class="dropdown-item p-2 rounded-2 mt-1 border-bottom text-wrap {{ $notification->read_at ? 'bg-white opacity-75' : 'bg-light fw-bold' }}" href="{{ route('teacher.notification.read', $notification->id) }}">
+                                            <div class="d-flex align-items-center gap-2">
+                                                <i class="bi {{ $notification->data['icon'] ?? 'bi-journal-check' }} text-primary fs-5"></i>
+                                                <div>
+                                                    <div class="small fw-bold text-dark">{{ $notification->data['title'] ?? 'إشعار جديد' }}</div>
+                                                    <div class="text-muted" style="font-size: 0.75rem;">{{ $notification->data['message'] ?? '' }}</div>
+                                                    <small class="text-secondary opacity-75" style="font-size: 0.68rem;">{{ $notification->created_at->diffForHumans() }}</small>
+                                                </div>
+                                            </div>
+                                        </a>
+                                    </li>
+                                @empty
+                                    <li class="text-center text-muted py-4 small">
+                                        <i class="bi bi-bell-slash d-block fs-3 mb-1 opacity-50"></i>
+                                        لا توجد إشعارات حالياً
+                                    </li>
+                                @endforelse
+                            </ul>
+                        </div>
+                    @endif
+
+                    <!-- 🔔 نظام إشعارات ولي الأمر داخل النافبار -->
+                    @if(auth()->check() && auth()->user()->role === 'parent')
+                        @php
+                            $unreadNotifications = auth()->user()->unreadNotifications;
+                        @endphp
+                        <div class="dropdown me-1">
+                            <button class="btn btn-nav-profile position-relative" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="الإشعارات">
+                                <i class="bi bi-bell-fill fs-6"></i>
+                                @if($unreadNotifications->count() > 0)
+                                    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size: 0.6rem;">
+                                        {{ $unreadNotifications->count() }}
+                                    </span>
+                                @endif
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0 rounded-3 mt-2 p-2" style="width: 320px; max-height: 400px; overflow-y: auto;">
+                                <li class="dropdown-header fw-bold text-dark border-bottom pb-2 d-flex justify-content-between align-items-center">
+                                    <span><i class="bi bi-bell text-primary me-1"></i> الإشعارات</span>
+                                    <span class="badge bg-primary bg-opacity-10 text-primary small">{{ $unreadNotifications->count() }} غير مقروء</span>
+                                </li>
+                                
+                                @forelse(auth()->user()->notifications->take(10) as $notification)
+                                    <li>
+                                        <a class="dropdown-item p-2 rounded-2 mt-1 border-bottom text-wrap {{ $notification->read_at ? 'bg-white opacity-75' : 'bg-light fw-bold' }}" href="{{ route('parent.notification.read', $notification->id) }}">
+                                            <div class="d-flex align-items-center gap-2">
+                                                <i class="bi {{ $notification->data['icon'] ?? 'bi-info-circle' }} text-primary fs-5"></i>
+                                                <div>
+                                                    <div class="small fw-bold text-dark">{{ $notification->data['title'] ?? 'إشعار جديد' }}</div>
+                                                    <div class="text-muted" style="font-size: 0.75rem;">{{ $notification->data['message'] ?? '' }}</div>
+                                                    <small class="text-secondary opacity-75" style="font-size: 0.68rem;">{{ $notification->created_at->diffForHumans() }}</small>
+                                                </div>
+                                            </div>
+                                        </a>
+                                    </li>
+                                @empty
+                                    <li class="text-center text-muted py-4 small">
+                                        <i class="bi bi-bell-slash d-block fs-3 mb-1 opacity-50"></i>
+                                        لا توجد إشعارات حالياً
+                                    </li>
+                                @endforelse
+                            </ul>
+                        </div>
+                    @endif
+
                     <a href="{{ auth()->user()->role === 'manager' ? route('manager.profile') : (auth()->user()->role === 'teacher' ? route('teacher.profile') : route('parent.profile')) }}" class="btn btn-nav-profile">
                         <i class="bi bi-person-circle me-1"></i> الملف الشخصي
                     </a>

@@ -70,6 +70,17 @@
             font-size: 0.78rem;
         }
 
+        .school-badge {
+            background-color: #e0f2fe;
+            color: #0369a1;
+            border: 1px solid #bae6fd;
+            font-weight: 700;
+            padding: 4px 12px;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            display: inline-block;
+        }
+
         .table > :not(caption) > * > * {
             padding: 0.85rem 0.75rem;
         }
@@ -113,6 +124,24 @@
             </div>
         @endif
 
+        <!-- شريط البحث السريع عن المدراء والمدارس -->
+        <div class="admin-card p-3 mb-4 bg-white">
+            <form method="GET" action="{{ url()->current() }}" class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                <div class="fw-bold text-dark d-flex align-items-center gap-2 fs-6">
+                    <i class="bi bi-search text-primary"></i> <span>البحث في لوحة التحكم</span>
+                </div>
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <input type="text" name="search" class="form-control form-control-sm" placeholder="ابحث باسم المدير أو اسم المدرسة..." value="{{ request('search') }}" style="width: 260px; border-radius: 8px;">
+                    <button type="submit" class="btn btn-sm btn-primary fw-bold px-3 py-1.5" style="border-radius: 8px;">
+                        <i class="bi bi-search me-1"></i> بحث
+                    </button>
+                    @if(request('search'))
+                        <a href="{{ url()->current() }}" class="btn btn-sm btn-outline-secondary py-1.5 px-3 fw-semibold" style="border-radius: 8px;">إعادة ضبط</a>
+                    @endif
+                </div>
+            </form>
+        </div>
+
         <!-- الطلبات المعلقة -->
         <div class="admin-card mb-4">
             <div class="p-3.5 card-header-pending d-flex justify-content-between align-items-center fw-bold">
@@ -135,6 +164,7 @@
                                 <tr>
                                     <th class="py-3">#</th>
                                     <th class="py-3 text-start ps-4">الاسم</th>
+                                    <th class="py-3">اسم المدرسة</th>
                                     <th class="py-3">اسم المستخدم</th>
                                     <th class="py-3">البريد الإلكتروني</th>
                                     <th class="py-3">الهاتف</th>
@@ -146,6 +176,9 @@
                                     <tr>
                                         <td class="fw-bold text-muted">{{ $index + 1 }}</td>
                                         <td class="text-start ps-4 fw-bold text-dark">{{ $manager->name }}</td>
+                                        <td>
+                                            <span class="school-badge">{{ $manager->school_name ?? 'غير محدد' }}</span>
+                                        </td>
                                         <td class="text-secondary">{{ $manager->username }}</td>
                                         <td class="text-secondary">{{ $manager->email }}</td>
                                         <td class="text-secondary">{{ $manager->phone ?? '-' }}</td>
@@ -184,13 +217,15 @@
                     <i class="bi bi-person-check-fill fs-5"></i>
                     <span class="fs-6">قائمة المدراء المفعلين</span>
                 </div>
-                <span class="badge bg-success badge-count">{{ $approvedManagers->count() }}</span>
+                <span class="badge bg-success badge-count">
+                    {{ method_exists($approvedManagers, 'total') ? $approvedManagers->total() : $approvedManagers->count() }}
+                </span>
             </div>
             <div class="card-body p-0">
                 @if($approvedManagers->isEmpty())
                     <div class="text-center py-4 text-muted">
                         <i class="bi bi-inbox fs-3 d-block mb-1 text-secondary opacity-50"></i>
-                        <p class="mb-0 small fw-semibold">لا يوجد مدراء مفعلون حالياً.</p>
+                        <p class="mb-0 small fw-semibold">لا يوجد مدراء مفعلون مطابقون لخيارات البحث حالياً.</p>
                     </div>
                 @else
                     <div class="table-responsive">
@@ -199,6 +234,7 @@
                                 <tr>
                                     <th class="py-3">#</th>
                                     <th class="py-3 text-start ps-4">الاسم</th>
+                                    <th class="py-3">اسم المدرسة المسؤول عنها</th>
                                     <th class="py-3">اسم المستخدم</th>
                                     <th class="py-3">البريد الإلكتروني</th>
                                     <th class="py-3">الحالة</th>
@@ -208,8 +244,13 @@
                             <tbody>
                                 @foreach($approvedManagers as $index => $manager)
                                     <tr>
-                                        <td class="fw-bold text-muted">{{ $index + 1 }}</td>
+                                        <td class="fw-bold text-muted">
+                                            {{ method_exists($approvedManagers, 'firstItem') ? $approvedManagers->firstItem() + $index : $index + 1 }}
+                                        </td>
                                         <td class="text-start ps-4 fw-bold text-dark">{{ $manager->name }}</td>
+                                        <td>
+                                            <span class="school-badge">{{ $manager->school_name ?? 'غير محدد' }}</span>
+                                        </td>
                                         <td class="text-secondary">{{ $manager->username }}</td>
                                         <td class="text-secondary">{{ $manager->email }}</td>
                                         <td>
@@ -229,6 +270,13 @@
                             </tbody>
                         </table>
                     </div>
+
+                    <!-- روابط التنقل بين الصفحات (Pagination) 10 بـ 10 -->
+                    @if(method_exists($approvedManagers, 'hasPages') && $approvedManagers->hasPages())
+                        <div class="d-flex justify-content-center p-3 border-top">
+                            {{ $approvedManagers->links('pagination::bootstrap-5') }}
+                        </div>
+                    @endif
                 @endif
             </div>
         </div>

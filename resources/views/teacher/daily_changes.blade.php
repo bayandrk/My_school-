@@ -131,6 +131,31 @@
             color: #ffffff !important;
         }
 
+        /* تخصيص أزرار الانتقال بين الصفحات (Pagination) لتورث لون التطبيق */
+        .pagination {
+            margin-bottom: 0;
+        }
+
+        .pagination .page-item .page-link {
+            color: var(--primary-color);
+            border-color: #e2e8f0;
+            font-weight: 600;
+            padding: 0.4rem 0.75rem;
+            transition: all 0.2s ease;
+        }
+
+        .pagination .page-item.active .page-link {
+            background-color: var(--primary-color) !important;
+            border-color: var(--primary-color) !important;
+            color: var(--btn-text-color, #ffffff) !important;
+        }
+
+        .pagination .page-item .page-link:hover {
+            background-color: color-mix(in srgb, var(--primary-color) 12%, #ffffff);
+            color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+
         .table > :not(caption) > * > * {
             padding: 0.85rem 0.65rem;
         }
@@ -245,13 +270,14 @@
                 <i class="bi bi-journal-text text-primary fs-5"></i> سجل التقييمات مرتبة بالتاريخ والوقت
             </h6>
 
+            <!-- تصفية السجلات حسب التاريخ، ويكون تاريخ اليوم هو الافتراضي -->
             <form method="GET" action="{{ url()->current() }}" class="d-flex align-items-center gap-2">
-                <input type="date" name="date" class="form-control form-control-sm" value="{{ request('date') }}" style="width: 140px;">
+                <input type="date" name="date" class="form-control form-control-sm" value="{{ request('date', $selectedDate ?? date('Y-m-d')) }}" style="width: 145px;">
                 <button type="submit" class="btn btn-sm btn-school-main fw-bold px-3 py-1">
                     <i class="bi bi-filter"></i> تصفية
                 </button>
                 @if(request('date'))
-                    <a href="{{ url()->current() }}" class="btn btn-sm btn-link text-danger text-decoration-none p-0 small">إلغاء</a>
+                    <a href="{{ url()->current() }}" class="btn btn-sm btn-outline-secondary py-1 px-2 fw-semibold">إظهار الكل</a>
                 @endif
             </form>
         </div>
@@ -277,7 +303,9 @@
 
                         @forelse($recordsList as $index => $record)
                             <tr>
-                                <td class="fw-bold text-muted">{{ $index + 1 }}</td>
+                                <td class="fw-bold text-muted">
+                                    {{ method_exists($recordsList, 'firstItem') ? $recordsList->firstItem() + $index : $index + 1 }}
+                                </td>
                                 <td class="text-start ps-3 fw-bold text-dark">
                                     {{ $record->child->name ?? $record->student->name ?? $record->student_name ?? 'غير محدد' }}
                                 </td>
@@ -304,7 +332,6 @@
                                     </span>
                                 </td>
                                 <td>
-                                    <!-- المسافة المريحة gap-3 بين أزرار التعديل والحذف -->
                                     <div class="d-flex justify-content-center align-items-center gap-3">
                                         <button type="button" class="btn btn-action-edit" data-bs-toggle="modal" data-bs-target="#editModal{{ $record->id }}">
                                             <i class="bi bi-pencil-square"></i> تعديل
@@ -362,13 +389,20 @@
                             <tr>
                                 <td colspan="7" class="py-5 text-muted">
                                     <i class="bi bi-inbox fs-2 d-block mb-2 text-secondary"></i>
-                                    لا توجد سجلات مدخلة حالياً.
+                                    لا توجد سجلات مدخلة لهذا اليوم.
                                 </td>
                             </tr>
                         @endforelse
                     </tbody>
                 </table>
             </div>
+
+            <!-- التنقل بين الصفحات 10 بـ 10 مع وراثة ألوان التطبيق -->
+            @if(method_exists($recordsList, 'hasPages') && $recordsList->hasPages())
+                <div class="d-flex justify-content-center p-3 border-top">
+                    {{ $recordsList->links('pagination::bootstrap-5') }}
+                </div>
+            @endif
         </div>
     </div>
 

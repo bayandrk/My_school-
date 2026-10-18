@@ -3,82 +3,127 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>الملف الشخصي للمدير</title>
+    <title>الملف الشخصي للمدير وتخصيص المظهر</title>
 
-    <!-- Bootstrap 5 RTL CSS -->
+    <!-- Bootstrap 5 RTL CSS & Icons -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css">
-    <!-- Bootstrap Icons -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
-    <!-- الخط العربي (Cairo) -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <!-- الخط العربي Cairo -->
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
 
     <style>
+        :root {
+            --primary-color: {{ $manager->primary_color ?? '#0d7a5f' }};
+        }
+
         body {
             font-family: 'Cairo', sans-serif;
             background-color: #f8fafc;
             color: #1e293b;
         }
 
-        /* النافبار الخاصة بالمدير */
-        .navbar-manager {
-            background-color: {{ $manager->primary_color ?? '#0d6efd' }};
-            transition: background-color 0.3s ease;
+        /* النافبار الموحد المطبق تماماً كباقي الصفحات */
+        .navbar-custom {
+            background-color: var(--primary-color) !important;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.06);
+            padding: 0.65rem 0;
+            transition: all 0.3s ease;
         }
 
-        /* شارة واسم المدرسة بداخل النافبار */
+        .app-brand-title {
+            color: #ffffff !important;
+            font-weight: 800;
+            font-size: 1.05rem;
+            text-decoration: none;
+        }
+
+        /* شارة اسم المدرسة والشعار داخل النافبار */
         .school-navbar-brand {
             background-color: rgba(255, 255, 255, 0.18);
             border: 1px solid rgba(255, 255, 255, 0.3);
             border-radius: 12px;
-            padding: 0.35rem 0.85rem;
-            color: #ffffff;
-            font-size: 0.875rem;
-            font-weight: 700;
+            padding: 0.3rem 0.75rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .school-navbar-brand span {
+            color: #ffffff !important;
+            font-weight: 800;
+            font-size: 0.85rem;
+            white-space: nowrap;
         }
 
         .school-navbar-logo {
-            width: 32px;
-            height: 32px;
+            width: 30px;
+            height: 30px;
             object-fit: cover;
-            border-radius: 6px;
+            border-radius: 7px;
             background-color: #ffffff;
+            flex-shrink: 0;
         }
 
-        /* أزرار النافبار العلوي شفافة وأنيقة مثل المدير المعين */
-        .btn-nav-profile-custom {
-            background-color: rgba(255, 255, 255, 0.22) !important;
+        /* روابط التنقل الأنيقة */
+        .navbar-custom .nav-link {
             color: #ffffff !important;
-            border: 1px solid rgba(255, 255, 255, 0.4) !important;
             font-weight: 700;
+            font-size: 0.875rem;
+            padding: 0.45rem 0.85rem !important;
             border-radius: 10px;
-            font-size: 0.85rem;
-            padding: 0.4rem 0.95rem;
+            opacity: 0.88;
             transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+
+        .navbar-custom .nav-link:hover {
+            opacity: 1;
+            background-color: rgba(255, 255, 255, 0.15);
+        }
+
+        .navbar-custom .nav-link.active {
+            opacity: 1;
+            background-color: rgba(255, 255, 255, 0.22) !important;
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+        }
+
+        /* أزرار النافبار الجانبية */
+        .btn-nav-profile {
+            background-color: rgba(255, 255, 255, 0.18) !important;
+            color: #ffffff !important;
+            border: 1px solid rgba(255, 255, 255, 0.3) !important;
+            font-weight: 700;
+            border-radius: 9px;
+            font-size: 0.85rem;
+            padding: 0.35rem 0.85rem;
+            transition: all 0.2s ease;
+            white-space: nowrap;
             text-decoration: none;
         }
 
-        .btn-nav-profile-custom:hover {
-            background-color: rgba(255, 255, 255, 0.32) !important;
+        .btn-nav-profile:hover {
+            background-color: rgba(255, 255, 255, 0.28) !important;
             color: #ffffff !important;
         }
 
-        .btn-nav-logout-custom {
+        .btn-nav-logout {
             background-color: transparent !important;
             border: 1px solid rgba(255, 255, 255, 0.5) !important;
             color: #ffffff !important;
             font-weight: 700;
-            border-radius: 10px;
+            border-radius: 9px;
             font-size: 0.85rem;
-            padding: 0.4rem 0.95rem;
+            padding: 0.35rem 0.85rem;
             transition: all 0.2s ease;
+            white-space: nowrap;
         }
 
-        .btn-nav-logout-custom:hover {
+        .btn-nav-logout:hover {
             background-color: rgba(255, 255, 255, 0.2) !important;
+            border-color: rgba(255, 255, 255, 0.8) !important;
         }
 
+        /* تصميم الكروت */
         .profile-card {
             border: none;
             border-radius: 16px;
@@ -97,9 +142,8 @@
             font-weight: 700;
         }
 
-        /* الأيقونات الديناميكية بلون المدرسة */
         .theme-icon-dynamic {
-            color: {{ $manager->primary_color ?? '#0d6efd' }} !important;
+            color: var(--primary-color) !important;
         }
 
         .form-label {
@@ -120,12 +164,12 @@
 
         .form-control:focus {
             background-color: #ffffff;
-            border-color: {{ $manager->primary_color ?? '#0d6efd' }};
-            box-shadow: 0 0 0 3px color-mix(in srgb, {{ $manager->primary_color ?? '#0d6efd' }} 20%, transparent);
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 20%, transparent);
         }
 
         .btn-custom-primary {
-            background-color: {{ $manager->primary_color ?? '#0d6efd' }};
+            background-color: var(--primary-color);
             color: #ffffff;
             border: none;
             border-radius: 10px;
@@ -144,52 +188,49 @@
 </head>
 <body>
 
-    <!-- شريط النافبار الموحد للمدير -->
-    <nav class="navbar navbar-expand-lg navbar-dark navbar-manager py-3 shadow-sm mb-4">
+    <!-- نافبار موحد تماماً ومتطابق في الحجم والشكل مع باقي الصفحات -->
+    <nav class="navbar navbar-expand-lg navbar-dark navbar-custom mb-4">
         <div class="container">
             <div class="d-flex align-items-center gap-2">
-                <a class="navbar-brand fw-bold fs-4 d-flex align-items-center gap-2 m-0" href="#">
+                <a class="app-brand-title d-flex align-items-center gap-2 m-0" href="#">
                     لوحة إدارة المدرسة
                 </a>
 
-                <!-- شارة اسم المدرسة والشعار -->
-                <div class="school-navbar-brand d-flex align-items-center gap-2 ms-2">
+                <!-- شارة اسم المدرسة والشعار داخل النافبار -->
+                <div class="school-navbar-brand ms-2">
                     @if($manager->logo)
                         <img src="{{ asset('storage/' . $manager->logo) }}" alt="لوغو" class="school-navbar-logo">
                     @else
-                        <i class="bi bi-building-check text-warning fs-5"></i>
+                        <i class="bi bi-building fs-6"></i>
                     @endif
-                    <span>
-                        {{ $manager->school_name ?? 'سعدالله ونوس' }}
-                    </span>
+                    <span>{{ $manager->school_name ?? 'سعدالله ونوس' }}</span>
                 </div>
             </div>
 
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#managerNavbar">
+            <button class="navbar-toggler border-0 shadow-none" type="button" data-bs-toggle="collapse" data-bs-target="#managerNavbar">
                 <span class="navbar-toggler-icon"></span>
             </button>
 
             <div class="collapse navbar-collapse" id="managerNavbar">
-                <ul class="navbar-nav me-auto mb-2 mb-lg-0 fw-semibold">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0 fw-semibold gap-1 ms-lg-3">
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ route('manager.dashboard') }}">المهام والطلبات</a>
+                        <a class="nav-link {{ request()->routeIs('manager.dashboard') ? 'active' : '' }}" href="{{ route('manager.dashboard') }}">المهام والطلبات</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ route('manager.classes') }}">دليل الصفوف</a>
+                        <a class="nav-link {{ request()->routeIs('manager.classes') ? 'active' : '' }}" href="{{ route('manager.classes') }}">دليل الصفوف</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ route('manager.teachers') }}">دليل الأساتذة</a>
+                        <a class="nav-link {{ request()->routeIs('manager.teachers') ? 'active' : '' }}" href="{{ route('manager.teachers') }}">دليل الأساتذة</a>
                     </li>
                 </ul>
 
                 <div class="d-flex align-items-center gap-2">
-                    <!-- زر الملف الشخصي الشفاف الموحد -->
-                    <a href="{{ route('manager.profile') }}" class="btn btn-nav-profile-custom">
+                    <a href="{{ route('manager.profile') }}" class="btn btn-nav-profile active">
                         <i class="bi bi-person-circle me-1"></i> الملف الشخصي
                     </a>
                     <form action="{{ route('logout') }}" method="POST" class="d-inline">
                         @csrf
-                        <button type="submit" class="btn btn-nav-logout-custom">
+                        <button type="submit" class="btn btn-nav-logout">
                             تسجيل الخروج
                         </button>
                     </form>
@@ -258,7 +299,7 @@
                         <div class="col-md-4">
                             <label class="form-label">لون الهوية المفضل للمدرسة:</label>
                             <div class="d-flex align-items-center gap-2">
-                                <input type="color" name="primary_color" class="form-control form-control-color p-1" value="{{ $manager->primary_color ?? '#0d6efd' }}" title="اختر اللون" style="width: 50px; height: 38px; cursor: pointer;">
+                                <input type="color" name="primary_color" class="form-control form-control-color p-1" value="{{ $manager->primary_color ?? '#0d7a5f' }}" title="اختر اللون" style="width: 50px; height: 38px; cursor: pointer;">
                                 <span class="text-secondary small fw-semibold">انقر لاختيار اللون</span>
                             </div>
                         </div>
@@ -280,7 +321,7 @@
                 <span>تعديل الملف الشخصي للمدير (البيانات والحساب)</span>
             </div>
             <div class="card-body p-4">
-                <form action="{{ route('manager.profile') }}" method="POST">
+                <form action="{{ route('manager.profile.update') }}" method="POST">
                     @csrf
                     @method('PUT')
 
@@ -333,46 +374,14 @@
                             <i class="bi bi-arrow-right me-1"></i> إلغاء
                         </a>
 
-                        <div class="d-flex align-items-center gap-2">
-                            <!-- زر حذف الحساب الشخصي -->
-                            <button type="button" class="btn btn-outline-danger btn-sm rounded-2 fw-semibold px-3" data-bs-toggle="modal" data-bs-target="#deleteManagerModal">
-                                <i class="bi bi-trash3 me-1"></i> حذف حسابي الشخصي
-                            </button>
-
-                            <button type="submit" class="btn btn-custom-primary">
-                                <i class="bi bi-check-lg me-1"></i> حفظ التعديلات
-                            </button>
-                        </div>
+                        <button type="submit" class="btn btn-custom-primary">
+                            <i class="bi bi-check-lg me-1"></i> حفظ التعديلات
+                        </button>
                     </div>
                 </form>
             </div>
         </div>
 
-    </div>
-
-    <!-- نافذة تأكيد حذف حساب المدير (Modal) -->
-    <div class="modal fade" id="deleteManagerModal" tabindex="-1" aria-hidden="true" dir="rtl">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content rounded-4 text-end">
-                <div class="modal-header border-0 pb-0 d-flex justify-content-between align-items-center">
-                    <h6 class="modal-title fw-bold text-danger mb-0"><i class="bi bi-exclamation-triangle-fill me-1"></i> تأكيد حذف الحساب</h6>
-                    <button type="button" class="btn-close m-0" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body small text-secondary">
-                    <p class="text-dark fw-bold mb-1">هل أنت متأكد من رغبتك في حذف حسابك الشخصي كمدير؟</p>
-                    <span class="text-muted fs-7">ملاحظة: سيتم حذف حسابك فقط، ولن يتم حذف بيانات المدرسة أو الطلاب أو الأساتذة التابعين لها.</span>
-                </div>
-                <div class="modal-footer border-0 d-flex justify-content-end gap-2">
-                    <button type="button" class="btn btn-light rounded-2 btn-sm px-3" data-bs-dismiss="modal">إلغاء</button>
-                    
-                    <form action="{{ route('manager.profile.destroy') }}" method="POST" class="d-inline">
-                        @csrf
-                        @method('DELETE')
-                        <button type="submit" class="btn btn-danger fw-bold btn-sm rounded-2 px-3">نعم، احذف حسابي</button>
-                    </form>
-                </div>
-            </div>
-        </div>
     </div>
 
     <!-- Bootstrap 5 JS -->

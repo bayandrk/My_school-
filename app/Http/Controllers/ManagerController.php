@@ -7,42 +7,56 @@ use Illuminate\Support\Facades\Hash;
 use App\Models\Child;
 use App\Models\User;
 use Illuminate\Http\Request;
+use App\Notifications\TeacherAssignedNotification;
 
 class ManagerController extends Controller
 {
-public function dashboard()
-{
-    $this->checkManager();
-    $manager = Auth::user();
+public function dashboard(Request $request)
+    {
+        $this->checkManager();
+        $manager = Auth::user();
 
-    // طلبات الأساتذة المعلقة التابعين لنفس مدرسة المدير فقط
-    $pendingTeachers = User::where('role', 'teacher')
-        ->where('status', 'pending')
-        ->where('school_name', $manager->school_name)
-        ->latest()
-        ->get();
+        // طلبات الأساتذة المعلقة (10 بـ 10)
+        $pendingTeachers = User::where('role', 'teacher')
+            ->where('status', 'pending')
+            ->where('school_name', $manager->school_name)
+            ->latest()
+            ->paginate(10, ['*'], 'pending_page');
 
-    // الأساتذة المفعلون التابعون لنفس مدرسة المدير فقط
-    $approvedTeachers = User::where('role', 'teacher')
-        ->where('status', 'approved')
-        ->where('school_name', $manager->school_name)
-        ->get();
+        // الأساتذة المعتمدون (للإحصائيات فقط)
+        $approvedTeachers = User::where('role', 'teacher')
+            ->where('status', 'approved')
+            ->where('school_name', $manager->school_name)
+            ->get();
 
-    // طلاب مدرسة المدير فقط
-    $children = Child::where('manager_id', $manager->id)
-        ->orderBy('class')
-        ->get();
+        return view('manager.dashboard', compact('pendingTeachers', 'approvedTeachers'));
+    }
 
-    // جلب قائمة الصفوف الفريدة الخاصة بطلاب هذا المدير لنموذج التعيين
-    $classesList = Child::where('manager_id', $manager->id)
-        ->pluck('class')
-        ->unique()
-        ->sort()
-        ->values();
+// دالة إلغاء التعيين المتوافقة مع دالة التعيين
+public function unassignTeacherClass(Request $request)
+    {
+        $this->checkManager();
+        $managerId = Auth::id();
 
-    return view('manager.dashboard', compact('pendingTeachers', 'approvedTeachers', 'children', 'classesList'));
-}
+        $request->validate([
+            'teacher_id' => 'required|exists:users,id',
+            'class_name' => 'required|string',
+        ]);
 
+        $children = Child::where('manager_id', $managerId)
+            ->where('class', $request->class_name)
+            ->get();
+
+        if ($children->isEmpty()) {
+            return back()->with('error', 'لم يتم العثور على طلاب في هذا الصف.');
+        }
+
+        foreach ($children as $child) {
+            $child->teachers()->detach($request->teacher_id);
+        }
+
+        return redirect()->route('manager.assignments')->with('success', 'تم إلغاء تعيين الأستاذ عن صف (' . $request->class_name . ') بنجاح.');
+    }
     public function profile()
     {
         $manager = Auth::user();
@@ -72,220 +86,321 @@ public function dashboard()
     }
 
     // 2. الموافقة على الأستاذ
-    public function approveTeacher(User $teacher)
+    // إلغاء تفعيل حساب الأستاذ
+    public function deactivateTeacher(User $teacher)
     {
         $this->checkManager();
 
-        // التأكد من أن الأستاذ يتبع لنفس مدرسة المدير
         if ($teacher->school_name !== Auth::user()->school_name) {
             abort(403, 'غير مصرح لك بالتعامل مع هذا الأستاذ.');
         }
 
+        // تغيير حالة الحساب إلى معطل
+        $teacher->update(['status' => 'deactivated']);
+
+        return back()->with('success', 'تم إلغاء تفعيل حساب الأستاذ بنجاح.');
+    }
+
+    // إعادة تفعيل حساب الأستاذ المعطل
+    public function reactivateTeacher(User $teacher)
+    {
+        $this->checkManager();
+
+        if ($teacher->school_name !== Auth::user()->school_name) {
+            abort(403, 'غير مصرح لك بالتعامل مع هذا الأستاذ.');
+        }
+
+        // إرجاع حالة الحساب إلى مفعل
         $teacher->update(['status' => 'approved']);
 
-        return back()->with('success', 'تمت الموافقة على حساب الأستاذ بنجاح.');
+        return back()->with('success', 'تمت إعادة تفعيل حساب الأستاذ بنجاح.');
+    }
+    public function deactivatedTeachers(Request $request)
+{
+    $this->checkManager();
+    $manager = auth()->user();
+    $search = $request->input('search');
+
+    $query = User::where('role', 'teacher')
+        ->where('status', 'deactivated') // جلب المعطلين فقط
+        ->where('school_name', $manager->school_name);
+
+    if ($search) {
+        $query->where(function($q) use ($search) {
+            $q->where('name', 'like', "%{$search}%")
+              ->orWhere('email', 'like', "%{$search}%")
+              ->orWhere('phone', 'like', "%{$search}%");
+        });
     }
 
-    // 3. رفض الأستاذ
-    public function rejectTeacher(User $teacher)
-    {
-        $this->checkManager();
+    $teachers = $query->get();
 
-        if ($teacher->school_name !== Auth::user()->school_name) {
-            abort(403, 'غير مصرح لك بالتعامل مع هذا الأستاذ.');
-        }
+    return view('manager.deactivated_teachers', compact('teachers', 'search'));
+}
 
-        $teacher->delete();
-
-        return back()->with('success', 'تم رفض طلب الأستاذ وحذفه بنجاح.');
+// 1. أرشفة طالب
+public function archiveChild(Child $child)
+{
+    $this->checkManager();
+    if ($child->manager_id !== Auth::id()) {
+        abort(403);
     }
 
-    // 4. تعيين أستاذ لطالب
-    // public function assignTeacherToChild(Request $request)
-    // {
-    //     $this->checkManager();
-    //     $managerId = Auth::id();
+    $child->status = 'archived';
+    $child->save(); // استخدام save بدلاً من update لضمان حفظ الحالة
 
-    //     $request->validate([
-    //         'teacher_id' => 'required|exists:users,id',
-    //         'child_id'   => 'required|exists:children,id',
-    //     ]);
+    return back()->with('success', 'تم أرشفة حساب الطالب بنجاح ونقله للأرشيف.');
+}
 
-    //     // التأكد من أن الطالب يتبع لهذا المدير وأن الأستاذ يتبع لنفس المدرسة
-    //     $child = Child::where('id', $request->child_id)->where('manager_id', $managerId)->firstOrFail();
-    //     $teacher = User::where('id', $request->teacher_id)->where('school_name', Auth::user()->school_name)->firstOrFail();
-        
-    //     // ربط الأستاذ بالطفل بدون تكرار في جدول child_teacher
-    //     $child->teachers()->syncWithoutDetaching([$teacher->id]);
+// 2. إعادة تفعيل طالب من الأرشيف
+public function restoreChild(Child $child)
+{
+    $this->checkManager();
+    if ($child->manager_id !== Auth::id()) {
+        abort(403);
+    }
 
-    //     return back()->with('success', 'تم تعيين الأستاذ للطالب بنجاح.');
-    // }
-// تعيين أستاذ لصف كامل
-public function assignTeacherToClass(Request $request)
+    $child->update(['status' => 'active']);
+
+    return back()->with('success', 'تمت إعادة تفعيل الطالب وإرجاعه لدليل الصفوف بنجاح.');
+}
+
+// 3. عرض الطلاب المؤرشفين
+public function archivedChildren(Request $request)
 {
     $this->checkManager();
     $managerId = Auth::id();
+    $search = $request->input('search');
 
-    $request->validate([
-        'teacher_id' => 'required|exists:users,id',
-        'class_name' => 'required|string',
-    ]);
+    $query = Child::where('manager_id', $managerId)
+        ->where('status', 'archived');
 
-    // التأكد من أن الأستاذ يتبع لنفس مدرسة المدير
-    $teacher = User::where('id', $request->teacher_id)
-        ->where('school_name', Auth::user()->school_name)
-        ->firstOrFail();
+    if ($search) {
+        $query->where('name', 'like', "%{$search}%");
+    }
 
-    // جلب كل طلاب هذا المدير الذين ينتمون إلى الصف المحدد
-    $children = Child::where('manager_id', $managerId)
-        ->where('class', $request->class_name)
+    $children = $query->get();
+
+    return view('manager.archived_children', compact('children', 'search'));
+}
+// 2. صفحة إدارة التعيينات المستقلة
+public function assignmentsIndex(Request $request)
+{
+    // التحقق بأمان من صلاحية المدير
+    if (method_exists($this, 'checkManager')) {
+        $this->checkManager();
+    }
+    
+    $manager = Auth::user();
+
+    // الأساتذة المعتمدون للتعيين
+    $approvedTeachers = User::where('role', 'teacher')
+        ->where('status', 'approved')
+        ->where('school_name', $manager->school_name)
         ->get();
 
-    if ($children->isEmpty()) {
-        return back()->with('error', 'لا يوجد طلاب في هذا الصف ليتم ربطهم بالأستاذ.');
+    // قائمة الصفوف
+    $classesList = Child::where('manager_id', $manager->id)
+        ->pluck('class')
+        ->unique()
+        ->sort()
+        ->values();
+
+    // جلب التعيينات الحالية وتجميعها حسب الصف
+    $currentAssignments = collect();
+
+    try {
+        $children = Child::where('manager_id', $manager->id)
+            ->has('teachers')
+            ->with('teachers')
+            ->get();
+
+        $grouped = [];
+
+        foreach ($children as $child) {
+            $className = $child->class;
+            if (!isset($grouped[$className])) {
+                $grouped[$className] = collect();
+            }
+
+            foreach ($child->teachers as $teacher) {
+                $grouped[$className]->push($teacher);
+            }
+        }
+
+        foreach ($grouped as $className => $teachersColl) {
+            $currentAssignments->push((object)[
+                'class_name' => $className,
+                'teachers' => $teachersColl->unique('id')->values()
+            ]);
+        }
+
+        $currentAssignments = $currentAssignments->sortBy('class_name')->values();
+
+    } catch (\Exception $e) {
+        $currentAssignments = collect();
     }
 
-    // ربط كل طلاب الصف بهذا الأستاذ بدون تكرار
-    foreach ($children as $child) {
-        $child->teachers()->syncWithoutDetaching([$teacher->id]);
-    }
-
-    return back()->with('success', 'تم تعيين الأستاذ لجميع طلاب صف (' . $request->class_name . ') بنجاح.');
+    return view('manager.assignments', compact('approvedTeachers', 'classesList', 'currentAssignments'));
 }
-
-    // 5. صفحة الصفوف الشاملة
-    public function classes(Request $request)
+// دالة تنفيذ تعيين الأستاذ لصف دراسي
+    public function assignTeacherToClass(Request $request)
     {
         $this->checkManager();
         $managerId = Auth::id();
 
-        // 1. تحديد العام الدراسي المحدد من القائمة المنسدلة (الافتراضي السنة الحالية)
-        $selectedYear = $request->get('year', date('Y'));
-        
-        // 2. جلب معايير الفلترة الإضافية (حسب اسم الطالب وحسب الصف المحدد)
-        $studentSearch = $request->input('search_student');
-        $selectedClass = $request->input('class_filter');
+        $request->validate([
+            'teacher_id' => 'required|exists:users,id',
+            'class_name' => 'required|string',
+        ]);
 
-        // 3. جلب جميع السنوات المتاحة في النظام ديناميكياً لطلاب المدير الحالي فقط
-        $availableYears = Child::where('manager_id', $managerId)
-            ->selectRaw('YEAR(created_at) as year')
-            ->distinct()
-            ->pluck('year')
-            ->push((int)date('Y'))
-            ->unique()
-            ->sortDesc();
+        // التأكد من أن الأستاذ يتبع لنفس مدرسة المدير
+        $teacher = User::where('id', $request->teacher_id)
+            ->where('school_name', Auth::user()->school_name)
+            ->first();
 
-        // 4. بناء استعلام الطلاب مع تطبيق فلاتر العام، الصف، والبحث بالاسم
-        $query = Child::with(['dailyChanges', 'teachers'])
-            ->where('manager_id', $managerId)
-            ->where(function($q) use ($selectedYear) {
-                $q->whereYear('created_at', $selectedYear)
-                  ->orWhere('class', 'LIKE', "%{$selectedYear}%");
-            });
-
-        // تصفية حسب الصف المحدد من القائمة المنسدلة للفلتر
-        if (!empty($selectedClass)) {
-            $query->where('class', $selectedClass);
+        if (!$teacher) {
+            return back()->with('error', 'الأستاذ المحدد غير موجود أو لا ينتمي إلى مدرستك.');
         }
 
-        // تصفية حسب اسم الطالب إذا تم إدخاله
-        if (!empty($studentSearch)) {
-            $query->where('name', 'like', '%' . $studentSearch . '%');
+        // جلب جميع طلاب هذا المدير الذين ينتمون إلى الصف المحدد
+        $children = Child::where('manager_id', $managerId)
+            ->where('class', $request->class_name)
+            ->get();
+
+        if ($children->isEmpty()) {
+            return back()->with('error', 'لا يوجد طلاب في هذا الصف ليتم ربطهم بالأستاذ.');
         }
 
-        $children = $query->get();
-
-        // جلب قائمة الصفوف الفريدة لملء خيارات فلتر الصفوف في الواجهة الخاصة بطلاب المدير
-        $allClassesList = Child::where('manager_id', $managerId)
-            ->pluck('class')
-            ->unique()
-            ->sort()
-            ->values();
-
-        // 5. تجميع الطلاب حسب اسم الصف
-        $childrenGroupedByClass = $children->groupBy('class');
-
-        // خريطة تحويل الكلمات العربية للأرقام لضمان الفرز الصحيح لأي صف جديد
-        $arabicNumbers = [
-            'الأول' => 1, 'اول' => 1,
-            'الثاني' => 2, 'ثاني' => 2,
-            'الثالث' => 3, 'ثالث' => 3,
-            'الرابع' => 4, 'رابع' => 4,
-            'الخامس' => 5, 'خامس' => 5,
-            'السادس' => 6, 'سادس' => 6,
-            'السابع' => 7, 'سابع' => 7,
-            'الثامن' => 8, 'ثامن' => 8,
-            'التاسع' => 9, 'تاسع' => 9,
-            'العاشر' => 10, 'عاشر' => 10,
-            'الحادي عشر' => 11, 'حادي عشر' => 11,
-            'الثاني عشر' => 12, 'ثاني عشر' => 12,
-        ];
-
-        // ترتيب المجموعات بشكل ديناميكي بالكامل
-        $childrenGroupedByClass = $childrenGroupedByClass->sortKeysUsing(function ($a, $b) use ($arabicNumbers) {
-            $numA = 99;
-            $numB = 99;
-
-            foreach ($arabicNumbers as $word => $val) {
-                if (mb_strpos($a, $word) !== false) { $numA = $val; }
-                if (mb_strpos($b, $word) !== false) { $numB = $val; }
+        // ربط جميع طلاب الصف بهذا الأستاذ بدون تكرار
+        foreach ($children as $child) {
+            if (method_exists($child, 'teachers')) {
+                $child->teachers()->syncWithoutDetaching([$teacher->id]);
             }
+        }
 
-            if ($numA === $numB) {
-                return strcmp($a, $b);
+        // إرسال إشعار للأستاذ بأمان إن وُجد كلاس الإشعار
+        try {
+            if (class_exists(\App\Notifications\TeacherAssignedNotification::class)) {
+                $teacher->notify(new \App\Notifications\TeacherAssignedNotification($request->class_name));
             }
+        } catch (\Exception $e) {
+            // تخطي خطأ الإشعار لضمان عدم توقف العملية
+        }
 
-            return $numA <=> $numB;
+        return redirect()->route('manager.assignments')->with('success', 'تم تعيين الأستاذ لصف (' . $request->class_name . ') بنجاح.');
+    }
+    // 5. صفحة الصفوف الشاملة
+    public function classes(Request $request)
+{
+    $this->checkManager();
+    $managerId = Auth::id();
+
+    // 1. تحديد العام الدراسي المحدد من القائمة المنسدلة (الافتراضي السنة الحالية)
+    $selectedYear = $request->get('year', date('Y'));
+    
+    // 2. جلب معايير الفلترة الإضافية (حسب اسم الطالب وحسب الصف المحدد)
+    $studentSearch = $request->input('search_student');
+    $selectedClass = $request->input('class_filter');
+
+    // 3. جلب جميع السنوات المتاحة في النظام ديناميكياً لطلاب المدير الحالي فقط
+    $availableYears = Child::where('manager_id', $managerId)
+        ->selectRaw('YEAR(created_at) as year')
+        ->distinct()
+        ->pluck('year')
+        ->push((int)date('Y'))
+        ->unique()
+        ->sortDesc();
+
+    // 4. بناء استعلام الطلاب مع تطبيق فلاتر العام، الصف، البحث بالاسم، واستبعاد المؤرشفين
+    $query = Child::with(['dailyChanges', 'teachers'])
+        ->where('manager_id', $managerId)
+        ->where(function($q) {
+            // جلب الطلاب النشطين فقط أو الذين ليس لديهم حقل status (القدامى)
+            $q->where('status', 'active')
+              ->orWhereNull('status');
+        })
+        ->where(function($q) use ($selectedYear) {
+            $q->whereYear('created_at', $selectedYear)
+              ->orWhere('class', 'LIKE', "%{$selectedYear}%");
         });
 
-        // 6. حساب المعدل العام لكل طالب
-        foreach ($childrenGroupedByClass as $className => $students) {
-            foreach ($students as $student) {
-                $student->average_score = round($student->dailyChanges->whereNotNull('score')->avg('score'), 2);
-            }
-        }
-
-        return view('manager.classes', compact(
-            'childrenGroupedByClass', 
-            'availableYears', 
-            'selectedYear', 
-            'allClassesList', 
-            'studentSearch', 
-            'selectedClass'
-        ));
+    // تصفية حسب الصف المحدد من القائمة المنسدلة للفلتر
+    if (!empty($selectedClass)) {
+        $query->where('class', $selectedClass);
     }
 
-    // 6. صفحة الأساتذة والصفوف المسؤولة عنها
-    // public function teachers()
-    // {
-    //     $this->checkManager();
+    // تصفية حسب اسم الطالب إذا تم إدخاله
+    if (!empty($studentSearch)) {
+        $query->where('name', 'like', '%' . $studentSearch . '%');
+    }
 
-    //     // جلب جميع الأساتذة المفعلين التابعين لنفس مدرسة المدير فقط مع الطلاب التابعين لهم
-    //     $teachers = User::where('role', 'teacher')
-    //         ->where('status', 'approved')
-    //         ->where('school_name', Auth::user()->school_name)
-    //         ->with('students')
-    //         ->get();
+    $children = $query->get();
 
-    //     return view('manager.teachers', compact('teachers'));
-    // }
+    // جلب قائمة الصفوف الفريدة لملء خيارات فلتر الصفوف (لطلاب النشطين فقط)
+    $allClassesList = Child::where('manager_id', $managerId)
+        ->where(function($q) {
+            $q->where('status', 'active')->orWhereNull('status');
+        })
+        ->pluck('class')
+        ->unique()
+        ->sort()
+        ->values();
 
-    // public function editChild(Child $child)
-    // {
-    //     $this->checkManager();
+    // 5. تجميع الطلاب حسب اسم الصف
+    $childrenGroupedByClass = $children->groupBy('class');
 
-    //     // التأكد من أن الطالب يتبع لهذا المدير
-    //     if ($child->manager_id !== Auth::id()) {
-    //         abort(403, 'غير مصرح لك بالوصول إلى هذا الطالب.');
-    //     }
+    // خريطة تحويل الكلمات العربية للأرقام لضمان الفرز الصحيح لأي صف جديد
+    $arabicNumbers = [
+        'الأول' => 1, 'اول' => 1,
+        'الثاني' => 2, 'ثاني' => 2,
+        'الثالث' => 3, 'ثالث' => 3,
+        'الرابع' => 4, 'رابع' => 4,
+        'الخامس' => 5, 'خامس' => 5,
+        'السادس' => 6, 'سادس' => 6,
+        'السابع' => 7, 'سابع' => 7,
+        'الثامن' => 8, 'ثامن' => 8,
+        'التاسع' => 9, 'تاسع' => 9,
+        'العاشر' => 10, 'عاشر' => 10,
+        'الحادي عشر' => 11, 'حادي عشر' => 11,
+        'الثاني عشر' => 12, 'ثاني عشر' => 12,
+    ];
 
-    //     $parents = User::where('role', 'parent')
-    //         ->where('status', 'approved')
-    //         ->get();
+    // ترتيب المجموعات بشكل ديناميكي بالكامل
+    $childrenGroupedByClass = $childrenGroupedByClass->sortKeysUsing(function ($a, $b) use ($arabicNumbers) {
+        $numA = 99;
+        $numB = 99;
 
-    //     return view('manager.edit_child', compact('child', 'parents'));
-    // }
-// صفحة الأساتذة والصفوف المسؤولة عنها
+        foreach ($arabicNumbers as $word => $val) {
+            if (mb_strpos($a, $word) !== false) { $numA = $val; }
+            if (mb_strpos($b, $word) !== false) { $numB = $val; }
+        }
+
+        if ($numA === $numB) {
+            return strcmp($a, $b);
+        }
+
+        return $numA <=> $numB;
+    });
+
+    // 6. حساب المعدل العام لكل طالب
+    foreach ($childrenGroupedByClass as $className => $students) {
+        foreach ($students as $student) {
+            $student->average_score = round($student->dailyChanges->whereNotNull('score')->avg('score'), 2);
+        }
+    }
+
+    return view('manager.classes', compact(
+        'childrenGroupedByClass', 
+        'availableYears', 
+        'selectedYear', 
+        'allClassesList', 
+        'studentSearch', 
+        'selectedClass'
+    ));
+}
+
+
     public function teachers(Request $request)
     {
         $this->checkManager();
@@ -501,6 +616,32 @@ public function updateBranding(Request $request)
 
     return redirect()->back()->with('success', 'تم تحديث مظهر المدرسة (اللوغو والألوان) بنجاح.');
 }
+public function approveTeacher(User $teacher)
+{
+    $this->checkManager();
+
+    if ($teacher->school_name !== Auth::user()->school_name) {
+        abort(403, 'غير مصرح لك بالتعامل مع هذا الأستاذ.');
+    }
+
+    // تحديث حالة الأستاذ إلى معتمد
+    $teacher->update(['status' => 'approved']);
+
+    return back()->with('success', 'تمت الموافقة على طلب انضمام الأستاذ بنجاح.');
+}
+public function rejectTeacher(User $teacher)
+    {
+        $this->checkManager();
+
+        if ($teacher->school_name !== Auth::user()->school_name) {
+            abort(403, 'غير مصرح لك بالتعامل مع هذا الأستاذ.');
+        }
+
+        // حذف الأستاذ أو رفض طلبه نهائياً
+        $teacher->delete();
+
+        return back()->with('success', 'تم رفض وحذف طلب انضمام الأستاذ بنجاح.');
+    }
 
     private function checkManager()
     {

@@ -55,17 +55,16 @@
             color: var(--btn-text-color) !important;
         }
 
-        /* زر الحذف باللون الديناميكي للمدرسة */
-        .btn-delete-dynamic {
-            background-color: color-mix(in srgb, var(--primary-color) 12%, #ffffff) !important;
-            border: 1.5px solid var(--primary-color) !important;
-            color: var(--primary-color) !important;
+        /* زر إلغاء التفعيل */
+        .btn-deactivate-dynamic {
+            background-color: var(--primary-color) !important;
+            border-color: var(--primary-color) !important;
+            color: var(--btn-text-color) !important;
             font-weight: 700 !important;
         }
 
-        .btn-delete-dynamic:hover {
-            background-color: var(--primary-color) !important;
-            color: var(--btn-text-color) !important;
+        .btn-deactivate-dynamic:hover {
+            opacity: 0.9;
         }
 
         .btn-search-school {
@@ -96,26 +95,33 @@
                 <p class="text-muted small mb-0">إدارة المعلمين ومتابعة توزيع الطلاب والصفوف المدرسية</p>
             </div>
 
-            <form method="GET" action="{{ route('manager.teachers') }}" class="d-flex align-items-center gap-2 flex-wrap">
-                <!-- القائمة المنسدلة للعام الدراسي -->
-                <select name="year" class="form-select form-select-sm fw-semibold" style="width: 125px;" onchange="this.form.submit()">
-                    @foreach($availableYears ?? [now()->year, now()->year - 1] as $y)
-                        <option value="{{ $y }}" {{ (string)request('year', $selectedYear ?? now()->year) === (string)$y ? 'selected' : '' }}>
-                            العام: {{ $y }}
-                        </option>
-                    @endforeach
-                </select>
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <form method="GET" action="{{ route('manager.teachers') }}" class="d-flex align-items-center gap-2 flex-wrap m-0">
+                    <!-- القائمة المنسدلة للعام الدراسي -->
+                    <select name="year" class="form-select form-select-sm fw-semibold" style="width: 125px;" onchange="this.form.submit()">
+                        @foreach($availableYears ?? [now()->year, now()->year - 1] as $y)
+                            <option value="{{ $y }}" {{ (string)request('year', $selectedYear ?? now()->year) === (string)$y ? 'selected' : '' }}>
+                                العام: {{ $y }}
+                            </option>
+                        @endforeach
+                    </select>
 
-                <!-- حقل البحث باسم الأستاذ أو البريد -->
-                <div class="input-group input-group-sm" style="width: 210px;">
-                    <input type="text" name="search" value="{{ request('search') }}" class="form-control form-control-sm" placeholder="ابحث باسم الأستاذ...">
-                    <button type="submit" class="btn btn-search-school fw-bold"><i class="bi bi-search"></i></button>
-                </div>
+                    <!-- حقل البحث باسم الأستاذ أو البريد -->
+                    <div class="input-group input-group-sm" style="width: 210px;">
+                        <input type="text" name="search" value="{{ request('search') }}" class="form-control form-control-sm" placeholder="ابحث باسم الأستاذ...">
+                        <button type="submit" class="btn btn-search-school fw-bold"><i class="bi bi-search"></i></button>
+                    </div>
 
-                @if(request('search') || request('year'))
-                    <a href="{{ route('manager.teachers') }}" class="btn btn-outline-secondary btn-sm-custom">إلغاء</a>
-                @endif
-            </form>
+                    @if(request('search') || request('year'))
+                        <a href="{{ route('manager.teachers') }}" class="btn btn-outline-secondary btn-sm-custom">إلغاء</a>
+                    @endif
+                </form>
+
+                <!-- زر الأساتذة غير المفعلين -->
+                <a href="{{ route('manager.teachers.deactivated') }}" class="btn btn-outline-danger btn-sm-custom d-flex align-items-center gap-1">
+                    <i class="bi bi-person-x-fill"></i> الأساتذة غير المفعلين
+                </a>
+            </div>
         </div>
     </div>
 
@@ -141,84 +147,81 @@
                             </div>
 
                             <div class="d-flex align-items-center gap-2">
-                                <!-- زر عرض التفاصيل باللون الديناميكي -->
-                                <button class="btn btn-sm-custom btn-school-dynamic d-flex align-items-center gap-1" type="button" data-bs-toggle="collapse" data-bs-target="#teacherDetails{{ $teacher->id }}" aria-expanded="false">
-                                    <i class="bi bi-eye"></i> عرض التفاصيل
-                                </button>
+                                <!-- زر إلغاء التفعيل مع رسالة تأكيد -->
+                                <form action="{{ route('manager.teachers.deactivate', $teacher->id) }}" method="POST" class="m-0">
+                                    @csrf
+                                    @method('PATCH')
+                                    <button type="submit" class="btn btn-sm-custom btn-deactivate-dynamic d-flex align-items-center gap-1" onclick="return confirm('هل أنت متأكد من رغبتك في إلغاء تفعيل حساب هذا الأستاذ؟')">
+                                        <i class="bi bi-person-x-fill"></i> إلغاء التفعيل
+                                    </button>
+                                </form>
 
-                                <!-- زر الحذف بلون المدرسة الديناميكي -->
-                                <button type="button" class="btn btn-sm-custom btn-delete-dynamic d-flex align-items-center gap-1" data-bs-toggle="modal" data-bs-target="#deleteModal{{ $teacher->id }}">
-                                    <i class="bi bi-trash"></i> حذف
+                                <!-- زر عرض التفاصيل -->
+                                <button class="btn btn-sm-custom btn-school-dynamic d-flex align-items-center gap-1" type="button" data-bs-toggle="collapse" data-bs-target="#teacherDetails{{ $teacher->id }}" aria-expanded="false" aria-controls="teacherDetails{{ $teacher->id }}">
+                                    <i class="bi bi-eye"></i> عرض التفاصيل
                                 </button>
                             </div>
                         </div>
 
-                        <!-- تفاصيل الصفوف والطلاب -->
+                        <!-- تفاصيل الصفوف والطلاب المخفية -->
                         <div class="collapse mt-3" id="teacherDetails{{ $teacher->id }}">
                             <hr class="text-muted opacity-25 my-2.5">
 
-                            <div class="mb-3">
+                            <div class="mb-2">
                                 <h6 class="fw-bold text-dark small mb-2">
-                                    <i class="bi bi-journal-check text-primary me-1"></i> الصفوف المسؤول عنها ({{ $teacherClasses->count() }}):
+                                    <i class="bi bi-journal-check text-primary me-1"></i> الصفوف المسؤول عنها ({{ $teacherClasses->count() }}): انقر على الصف لعرض طلابه
                                 </h6>
-                                <div class="d-flex flex-wrap gap-1.5">
+                                <div class="d-flex flex-wrap gap-2">
                                     @forelse($teacherClasses as $class)
-                                        <span class="badge badge-class px-2.5 py-1.5 rounded-2">{{ $class }}</span>
+                                        @php
+                                            $classCount = isset($studentsByClass[$class]) ? $studentsByClass[$class]->count() : 0;
+                                        @endphp
+
+                                        <!-- زر يفتح نافذة منبثقة خاصة بطلاب هذا الصف -->
+                                        <button type="button" class="btn badge-class px-3 py-2 rounded-2 border shadow-sm text-start" data-bs-toggle="modal" data-bs-target="#classModal{{ $teacher->id }}_{{ Str::slug($class) }}">
+                                            <i class="bi bi-building me-1"></i> {{ $class }} <span class="badge bg-primary text-white ms-1">{{ $classCount }} طلاب</span>
+                                        </button>
+
+                                        <!-- نافذة الـ Modal لكل صف -->
+                                        <div class="modal fade" id="classModal{{ $teacher->id }}_{{ Str::slug($class) }}" tabindex="-1" aria-hidden="true">
+                                            <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+                                                <div class="modal-content border-0 shadow rounded-4">
+                                                    <div class="modal-header border-bottom pb-2">
+                                                        <h5 class="fw-bold text-dark mb-0 fs-6">
+                                                            <i class="bi bi-people-fill text-primary me-2"></i> طلاب صف: {{ $class }}
+                                                        </h5>
+                                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                    </div>
+                                                    <div class="modal-body py-3">
+                                                        <div class="d-flex justify-content-between align-items-center mb-3 bg-light p-2 rounded-2 small text-muted">
+                                                            <span>المعلم المسؤول: <strong class="text-dark">{{ $teacher->name }}</strong></span>
+                                                            <span class="badge bg-secondary bg-opacity-10 text-secondary">العام: {{ request('year', $selectedYear ?? now()->year) }}</span>
+                                                        </div>
+
+                                                        @if(isset($studentsByClass[$class]) && $studentsByClass[$class]->count() > 0)
+                                                            <div class="list-group rounded-3 shadow-sm">
+                                                                @foreach($studentsByClass[$class] as $student)
+                                                                    <div class="list-group-item d-flex justify-content-between align-items-center py-2 px-3">
+                                                                        <span class="fw-bold text-dark small"><i class="bi bi-person-badge me-2 text-muted"></i>{{ $student->name }}</span>
+                                                                        <span class="badge bg-light text-secondary border small">العمر: {{ $student->age }}</span>
+                                                                    </div>
+                                                                @endforeach
+                                                            </div>
+                                                        @else
+                                                            <p class="text-muted small text-center py-3 mb-0">لا يوجد طلاب مسجلين في هذا الصف لهذا المعلم.</p>
+                                                        @endif
+                                                    </div>
+                                                    <div class="modal-footer border-top pt-2">
+                                                        <button type="button" class="btn btn-secondary btn-sm rounded-pill px-4" data-bs-dismiss="modal">إغلاق</button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
                                     @empty
                                         <span class="text-muted small">لا توجد صفوف مخصصة حالياً</span>
                                     @endforelse
                                 </div>
                             </div>
-
-                            <div>
-                                <h6 class="fw-bold text-dark small mb-2">
-                                    <i class="bi bi-person-video3 text-success me-1"></i> الطلاب التابعين له حسب الصفوف ({{ $teacher->students->count() }}):
-                                </h6>
-
-                                @if($teacher->students->count() > 0)
-                                    <div class="mt-2.5">
-                                        @foreach($studentsByClass as $className => $classStudents)
-                                            <div class="mb-2.5 border rounded-3 p-2.5 bg-light">
-                                                <div class="fw-bold text-primary small mb-1.5 border-bottom pb-1 d-flex justify-content-between align-items-center">
-                                                    <span><i class="bi bi-building me-1"></i> {{ $className }} ({{ $classStudents->count() }} طلاب)</span>
-                                                    <span class="badge bg-secondary bg-opacity-10 text-secondary fw-semibold">العام الدراسي: {{ request('year', $selectedYear ?? now()->year) }}</span>
-                                                </div>
-                                                <div class="d-flex flex-wrap gap-1">
-                                                    @foreach($classStudents as $st)
-                                                        <span class="badge bg-white text-dark border px-2 py-1">{{ $st->name }}</span>
-                                                    @endforeach
-                                                </div>
-                                            </div>
-                                        @endforeach
-                                    </div>
-                                @else
-                                    <p class="text-muted small mb-0">لا يوجد طلاب مرتبطين بهذا الأستاذ في العام الحالي.</p>
-                                @endif
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Modal الحذف للأستاذ -->
-            <div class="modal fade" id="deleteModal{{ $teacher->id }}" tabindex="-1" aria-hidden="true">
-                <div class="modal-dialog modal-dialog-centered">
-                    <div class="modal-content rounded-4 p-2">
-                        <div class="modal-header border-0 pb-0">
-                            <h6 class="modal-title fw-bold text-dark">تأكيد الحذف</h6>
-                            <button type="button" class="btn-close ms-0 me-auto" data-bs-dismiss="modal"></button>
-                        </div>
-                        <div class="modal-body">
-                            هل أنت متأكد من رغبتك في حذف الأستاذ {{ $teacher->name }}؟
-                        </div>
-                        <div class="modal-footer border-0">
-                            <button type="button" class="btn btn-light btn-sm px-3 rounded-2" data-bs-dismiss="modal">إلغاء</button>
-                            <form action="{{ route('manager.teachers.destroy', $teacher->id) }}" method="POST" class="d-inline">
-                                @csrf
-                                @method('DELETE')
-                                <!-- زر التأكيد داخل المودال بلون المدرسة الديناميكي -->
-                                <button type="submit" class="btn btn-sm-custom btn-delete-dynamic px-3">تأكيد الحذف</button>
-                            </form>
                         </div>
                     </div>
                 </div>

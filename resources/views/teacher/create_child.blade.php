@@ -104,15 +104,10 @@
                             <input type="text" name="name" class="form-control" placeholder="أدخل اسم الطفل الثلاثي..." value="{{ old('name') }}" required>
                         </div>
 
-                        <!-- 2. الصف الدراسي -->
+                        <!-- 2. الصف الدراسي (تم تحويله إلى حقل نصي كتابة حرة) -->
                         <div class="col-md-6">
                             <label class="form-label">الصف الدراسي <span class="text-danger">*</span></label>
-                            <select name="class" class="form-select" required>
-                                <option value="">-- اختر الصف الدراسي --</option>
-                                @foreach($availableClasses ?? ['الصف الأول', 'الصف الثاني', 'الصف الثالث', 'الصف الرابع', 'الصف الخامس', 'الصف السادس'] as $c)
-                                    <option value="{{ $c }}" {{ old('class') == $c ? 'selected' : '' }}>{{ $c }}</option>
-                                @endforeach
-                            </select>
+                            <input type="text" name="class" class="form-control" placeholder="مثال: الصف الأول، أو الأول أ..." value="{{ old('class') }}" required>
                         </div>
 
                         <!-- 3. العمر -->

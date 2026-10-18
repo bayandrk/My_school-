@@ -16,6 +16,10 @@ class Child extends Model
         'image',
         'parent_id',
         'manager_id',
+        'parent_note',
+        'replied_by_teacher_id',
+    
+        'status',
     ];
     public function parent()
     {
