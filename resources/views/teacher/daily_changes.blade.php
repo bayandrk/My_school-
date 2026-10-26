@@ -220,22 +220,37 @@
                         <label class="form-label">اختر الصف:</label>
                         <select id="class_select" class="form-select" required>
                             <option value="">-- اختر الصف أولاً --</option>
-                            @foreach($studentsGroupedByClass as $className => $classStudents)
+                            @foreach(array_unique(array_map(fn($k) => explode('||', $k)[0], array_keys($studentsGroupedByClassSection->all()))) as $className)
                                 <option value="{{ $className }}">{{ $className }}</option>
                             @endforeach
                         </select>
                     </div>
 
                     <div class="col-md-3">
-                        <label class="form-label">اختر الطالب:</label>
-                        <select name="child_id" id="student_select" class="form-select" required disabled>
+                        <label class="form-label">اختر الشعبة:</label>
+                        <select id="section_select" class="form-select" required disabled>
                             <option value="">-- اختر الصف أولاً --</option>
                         </select>
                     </div>
 
                     <div class="col-md-3">
+                        <label class="form-label">اختر الطالب:</label>
+                        <select name="child_id" id="student_select" class="form-select" required disabled>
+                            <option value="">-- اختر الشعبة أولاً --</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-3">
                         <label class="form-label">المادة / النشاط:</label>
-                        <input type="text" name="subject" class="form-control" placeholder="مثال: الرياضيات" required>
+                        <select id="subjectSelect" class="form-select">
+                            <option value="">-- اختر المادة --</option>
+                            <option value="__custom__">✏️ مخصص (كتابة حرة)...</option>
+                            @foreach($schoolSubjects as $subj)
+                                <option value="{{ $subj }}">{{ $subj }}</option>
+                            @endforeach
+                        </select>
+                        <!-- حقل الكتابة الحرة يظهر لما تختار "مخصص" -->
+                        <input type="text" id="subjectCustom" name="subject" class="form-control mt-2 d-none" placeholder="اكتب المادة أو النشاط..." maxlength="255">
                     </div>
 
                     <div class="col-md-3">
@@ -260,6 +275,41 @@
                     </button>
                 </div>
             </form>
+
+            @push('scripts')
+            <script>
+                document.addEventListener('DOMContentLoaded', function () {
+                    const select = document.getElementById('subjectSelect');
+                    const custom = document.getElementById('subjectCustom');
+                    if (!select || !custom) return;
+
+                    select.addEventListener('change', function () {
+                        if (this.value === '__custom__') {
+                            custom.classList.remove('d-none');
+                            custom.focus();
+                        } else {
+                            custom.classList.add('d-none');
+                            custom.value = '';
+                        }
+                    });
+
+                    // قبل الإرسال: إما المادة المختارة أو النص المخصص
+                    const form = custom.closest('form');
+                    form.addEventListener('submit', function () {
+                        if (select.value && select.value !== '__custom__') {
+                            custom.value = select.value;
+                        }
+                        if (!custom.value.trim()) {
+                            select.required = true;
+                            if (select.value === '__custom__' || !select.value) {
+                                alert('اختر مادة من القائمة أو اكتب موضوع مخصص.');
+                                event.preventDefault();
+                            }
+                        }
+                    });
+                });
+            </script>
+            @endpush
         </div>
     </div>
 
@@ -411,29 +461,64 @@
 @push('scripts')
     <script>
         document.addEventListener('DOMContentLoaded', function () {
-            const studentsGrouped = @json($studentsGroupedByClass ?? []);
-            const classSelect = document.getElementById('class_select');
+            const studentsGrouped = @json($studentsGroupedByClassSection ?? []);
+            const classSelect   = document.getElementById('class_select');
+            const sectionSelect = document.getElementById('section_select');
             const studentSelect = document.getElementById('student_select');
 
-            if (classSelect && studentSelect) {
-                classSelect.addEventListener('change', function () {
-                    const selectedClass = this.value;
-                    studentSelect.innerHTML = '<option value="">-- اختر الطالب --</option>';
+            // 1. اختيار الصف → يملأ الشعب
+            classSelect.addEventListener('change', function () {
+                const selectedClass = this.value;
+                sectionSelect.innerHTML = '<option value="">-- اختر الشعبة --</option>';
+                studentSelect.disabled = true;
+                studentSelect.innerHTML = '<option value="">-- اختر الشعبة أولاً --</option>';
 
-                    if (selectedClass && studentsGrouped[selectedClass]) {
-                        studentSelect.disabled = false;
-                        studentsGrouped[selectedClass].forEach(student => {
+                if (selectedClass) {
+                    const sections = Object.keys(studentsGrouped)
+                        .map(k => k.split('||'))
+                        .filter(([cls]) => cls === selectedClass)
+                        .map(([, sec]) => sec)
+                        .filter(s => s !== '')
+                        .filter((v, i, arr) => arr.indexOf(v) === i);
+
+                    if (sections.length > 0) {
+                        sectionSelect.disabled = false;
+                        sections.forEach(sec => {
                             const option = document.createElement('option');
-                            option.value = student.id;
-                            option.textContent = student.name;
-                            studentSelect.appendChild(option);
+                            option.value = sec;
+                            option.textContent = sec;
+                            sectionSelect.appendChild(option);
                         });
                     } else {
-                        studentSelect.disabled = true;
-                        studentSelect.innerHTML = '<option value="">-- اختر الصف أولاً --</option>';
+                        sectionSelect.disabled = true;
+                        sectionSelect.innerHTML = '<option value="">-- لا توجد شعب --</option>';
                     }
-                });
-            }
+                } else {
+                    sectionSelect.disabled = true;
+                    sectionSelect.innerHTML = '<option value="">-- اختر الصف أولاً --</option>';
+                }
+            });
+
+            // 2. اختيار الشعبة → يملأ الطلاب
+            sectionSelect.addEventListener('change', function () {
+                const selectedClass = classSelect.value;
+                const selectedSection = this.value;
+                studentSelect.innerHTML = '<option value="">-- اختر الطالب --</option>';
+
+                const key = selectedClass + '||' + selectedSection;
+                if (selectedSection && studentsGrouped[key]) {
+                    studentSelect.disabled = false;
+                    studentsGrouped[key].forEach(student => {
+                        const option = document.createElement('option');
+                        option.value = student.id;
+                        option.textContent = student.name;
+                        studentSelect.appendChild(option);
+                    });
+                } else {
+                    studentSelect.disabled = true;
+                    studentSelect.innerHTML = '<option value="">-- اختر الشعبة أولاً --</option>';
+                }
+            });
         });
     </script>
 @endpush

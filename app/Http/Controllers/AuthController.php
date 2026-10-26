@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\School;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -22,12 +23,32 @@ class AuthController extends Controller
             'email'       => 'required|string|email|max:255|unique:users',
             'password'    => 'required|string|min:8|confirmed',
             'role'        => 'required|in:manager,teacher,parent',
-            'phone'       => 'required|numeric',
+            'phone'       => 'required|numeric|digits_between:8,15|unique:users,phone',
             'school_name' => 'nullable|string|max:255',
+        ], [
+            // رسائل تحقق عربية واضحة (تظهر فوق النموذج دون كسر الصفحة)
+            'phone.required' => 'رقم الهاتف مطلوب.',
+            'phone.numeric'  => 'رقم الهاتف يجب أن يحتوي على أرقام فقط.',
+            'phone.unique'   => 'هذا الرقم مسجّل مسبقاً، استخدمي رقماً آخر.',
+            'phone.digits_between' => 'رقم الهاتف غير صحيح: يجب أن يتكوّن من 8 إلى 15 رقماً دون مسافات أو رموز. مثال: 0932123456 أو 963932123456.',
+            'username.unique' => 'اسم المستخدم موجود مسبقاً، اختر اسماً آخر.',
+            'email.unique'    => 'البريد الإلكتروني مسجّل مسبقاً.',
+            'password.confirmed' => 'كلمة المرور غير متطابقة.',
         ]);
 
         // ولي الأمر مفعل فوراً، بينما المدير والمعلم ينتظرون الموافقة
         $status = ($validated['role'] === 'parent') ? 'approved' : 'pending';
+
+        // المدرسة هي الكيان المركزي: عند تسجيل مدير جديد تُنشأ مدرسة جديدة
+        // ويرتبط بها كل من يسجل بنفس اسم المدرسة (مدير/معلم/ولي أمر).
+        $school = null;
+
+        if (!empty($validated['school_name'])) {
+            $school = School::firstOrCreate(
+                ['name' => $validated['school_name']],
+                ['name' => $validated['school_name']]
+            );
+        }
 
         $user = User::create([
             'name'        => $validated['name'],
@@ -36,11 +57,28 @@ class AuthController extends Controller
             'password'    => Hash::make($validated['password']),
             'role'        => $validated['role'],
             'phone'       => $validated['phone'],
-            'school_name' => $validated['school_name'] ?? null,
+            'school_id'   => $school?->id,
             'status'      => $status,
         ]);
 
         if ($user->status === 'pending') {
+            // إرسال إشعار للأدمن أو للـ manager إذا كان المعلم قد سجل في مدرسة معينة
+            if ($user->role === 'teacher' && $school) {
+                $manager = User::where('school_id', $school->id)->where('role', 'manager')->first();
+                if ($manager) {
+                    try {
+                        $manager->notify(new \App\Notifications\ManagerJoinRequestNotification($user->name, 'teacher'));
+                    } catch (\Exception $e) {}
+                }
+            } elseif ($user->role === 'manager') {
+                $admins = User::where('role', 'admin')->get();
+                foreach ($admins as $admin) {
+                    try {
+                        $admin->notify(new \App\Notifications\AdminManagerRequestNotification());
+                    } catch (\Exception $e) {}
+                }
+            }
+
             return redirect()->route('login')->with('success', 'تم إنشاء الحساب بنجاح، وهو بانتظار موافقة المسؤول.');
         }
 

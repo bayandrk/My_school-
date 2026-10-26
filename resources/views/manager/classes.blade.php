@@ -67,6 +67,25 @@
             color: var(--btn-text-color) !important;
             font-weight: 700 !important;
         }
+
+        /* هيدر الصف قابل للنقر لفتح الطلاب */
+        .class-header-clickable {
+            cursor: pointer;
+            user-select: none;
+            transition: background-color 0.2s ease;
+        }
+
+        .class-header-clickable:hover {
+            background-color: color-mix(in srgb, var(--primary-color) 8%, #f8fafc);
+        }
+
+        .class-toggle-icon {
+            transition: transform 0.25s ease;
+        }
+
+        .class-toggle-icon.collapsed {
+            transform: rotate(-90deg);
+        }
     </style>
 @endpush
 
@@ -79,6 +98,79 @@
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
     @endif
+
+    <!-- إدارة الصفوف والشعب والمواد بنظام اختياري (تُستخدم عند المعلم لإضافة الطفل والسجل) -->
+    <div class="card card-custom mb-4">
+        <div class="p-3 bg-white border-bottom fw-bold d-flex align-items-center gap-2 text-primary flex-wrap">
+            <i class="bi bi-sliders fs-5"></i>
+            <span>إدارة الصفوف والشعب والمواد</span>
+            <small class="text-muted fw-normal ms-2">(تظهر هذه القوائم عند الأساتذة في نماذج إضافة الطفل والسجل اليومي)</small>
+        </div>
+        <div class="card-body p-3">
+            <!-- أزرار الاختيار (تبويبات) -->
+            <div class="d-flex flex-wrap gap-2 mb-3">
+                @php
+                    $settingGroups = [
+                        'class'   => ['label' => 'الصفوف', 'icon' => 'bi-collection', 'items' => $school?->classes ?? []],
+                        'section' => ['label' => 'الشعب', 'icon' => 'bi-diagram-3', 'items' => $school?->sections ?? []],
+                        'subject' => ['label' => 'المواد', 'icon' => 'bi-book', 'items' => $school?->subjects ?? []],
+                    ];
+                    $activeSettingType = request('setting_type', 'class');
+                @endphp
+                @foreach($settingGroups as $type => $group)
+                    <a href="{{ url()->current() }}?setting_type={{ $type }}"
+                       class="btn btn-sm fw-bold px-3 py-2 rounded-3 d-inline-flex align-items-center gap-2"
+                       style="{{ $activeSettingType === $type
+                            ? 'background-color: var(--primary-color) !important; color: var(--btn-text-color, #ffffff) !important;'
+                            : 'background-color: color-mix(in srgb, var(--primary-color) 12%, #ffffff) !important; color: var(--primary-color) !important; border: 1.5px solid var(--primary-color) !important;' }}">
+                        <i class="bi {{ $group['icon'] }}"></i> {{ $group['label'] }}
+                        <span class="badge rounded-pill {{ $activeSettingType === $type ? 'bg-light text-dark' : 'bg-transparent' }}"
+                              style="{{ $activeSettingType === $type ? '' : 'border: 1px solid color-mix(in srgb, var(--primary-color) 40%, transparent);' }}">{{ count($group['items']) }}</span>
+                    </a>
+                @endforeach
+            </div>
+
+            <!-- عرض القائمة المختارة (الصفوف أو الشعب أو المواد) مع الإضافة -->
+            @php $activeGroup = $settingGroups[$activeSettingType] ?? $settingGroups['class']; @endphp
+            <div class="border rounded-3 p-3">
+                <h6 class="fw-bold text-dark mb-3">
+                    <i class="bi {{ $activeGroup['icon'] }} me-1" style="color: var(--primary-color);"></i>
+                    {{ $activeGroup['label'] }} ({{ count($activeGroup['items']) }})
+                </h6>
+
+                <!-- عرض العناصر الحالية -->
+                <div class="d-flex flex-wrap gap-2 mb-3" style="min-height: 32px;">
+                    @forelse($activeGroup['items'] as $item)
+                        <span class="badge rounded-pill px-3 py-2 d-inline-flex align-items-center gap-2"
+                              style="background-color: color-mix(in srgb, var(--primary-color) 12%, #ffffff); color: var(--primary-color); border: 1px solid color-mix(in srgb, var(--primary-color) 30%, transparent);">
+                            {{ $item }}
+                            <form action="{{ route('manager.settings.remove') }}" method="POST" class="d-inline"
+                                  onsubmit="return confirm('حذف {{ $item }}؟');">
+                                @csrf
+                                <input type="hidden" name="type" value="{{ $activeSettingType }}">
+                                <input type="hidden" name="value" value="{{ $item }}">
+                                <button type="submit" class="btn btn-link p-0 text-danger" title="حذف">
+                                    <i class="bi bi-x-lg small"></i>
+                                </button>
+                            </form>
+                        </span>
+                    @empty
+                        <span class="text-muted small">لا توجد عناصر بعد</span>
+                    @endforelse
+                </div>
+
+                <!-- نموذج الإضافة -->
+                <form action="{{ route('manager.settings.add') }}" method="POST" class="d-flex gap-2" style="max-width: 420px;">
+                    @csrf
+                    <input type="hidden" name="type" value="{{ $activeSettingType }}">
+                    <input type="text" name="value" class="form-control form-control-sm" placeholder="أضف {{ $activeGroup['label'] }}..." required maxlength="100">
+                    <button type="submit" class="btn btn-sm btn-school-main fw-bold px-3" title="إضافة">
+                        <i class="bi bi-plus-lg"></i> إضافة
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
 
     <!-- هيدر الصفوف مع التصفية السريعة -->
     <div class="card card-custom mb-4 p-3">
@@ -109,13 +201,23 @@
                         @endforeach
                     </select>
 
+                    <!-- تصفية حسب الشعبة (من قوائم المدرسة) -->
+                    <select name="section_filter" class="form-select form-select-sm fw-semibold" onchange="this.form.submit()" style="width: 130px;">
+                        <option value="">كل الشعب</option>
+                        @foreach($school?->sections ?? [] as $sec)
+                            <option value="{{ $sec }}" {{ (request('section_filter') == $sec) ? 'selected' : '' }}>
+                                {{ $sec }}
+                            </option>
+                        @endforeach
+                    </select>
+
                     <!-- تصفية حسب اسم الطالب -->
                     <div class="input-group input-group-sm" style="width: 210px;">
                         <input type="text" name="search_student" class="form-control form-control-sm" placeholder="بحث باسم الطالب..." value="{{ request('search_student') }}">
                         <button class="btn btn-search-school fw-bold" type="submit"><i class="bi bi-search"></i></button>
                     </div>
-                    
-                    @if(request('search_student') || request('class_filter'))
+
+                    @if(request('search_student') || request('class_filter') || request('section_filter'))
                         <a href="{{ route('manager.classes') }}" class="btn btn-outline-secondary btn-sm-custom">إلغاء</a>
                     @endif
                 </form>
@@ -138,10 +240,20 @@
         @foreach($childrenGroupedByClass as $className => $students)
             <div class="card card-custom mb-4">
                 <div class="class-header d-flex justify-content-between align-items-center flex-wrap gap-2">
-                    <div class="d-flex align-items-center gap-2">
+                    <!-- الجزء يلي يفتح الطلاب عند الضغط عليه -->
+                    <div class="class-header-clickable d-flex align-items-center gap-2 flex-grow-1"
+                         data-bs-toggle="collapse" data-bs-target="#studentsCollapse{{ $loop->index }}"
+                         aria-expanded="false" aria-controls="studentsCollapse{{ $loop->index }}">
+                        <i class="bi bi-chevron-down class-toggle-icon text-primary" style="font-size: 0.85rem;"></i>
                         <span class="fw-bold text-dark fs-6">
                             <i class="bi bi-building text-primary me-1"></i> {{ Str::startsWith($className, 'الصف') ? $className : 'الصف ' . $className }}
                         </span>
+                        @if(isset($students->first()->section) && $students->first()->section)
+                            <span class="badge rounded-pill px-2 py-1 small fw-bold"
+                                  style="background-color: color-mix(in srgb, var(--primary-color) 12%, #ffffff); color: var(--primary-color); border: 1px solid color-mix(in srgb, var(--primary-color) 30%, transparent);">
+                                الشعبة: {{ $students->first()->section }}
+                            </span>
+                        @endif
                         <span class="badge bg-primary bg-opacity-10 text-primary rounded-pill px-2.5 py-1 small fw-bold">
                             {{ $students->count() }} طالب
                         </span>
@@ -154,9 +266,14 @@
                         <a href="{{ route('manager.class.notes', ['class_name' => $className]) }}" class="btn btn-sm-custom btn-school-dynamic d-flex align-items-center gap-1">
                             <i class="bi bi-journal-text"></i> عرض الملاحظات
                         </a>
+                        <a href="{{ route('manager.class.parent.notes', ['class_name' => $className]) }}" class="btn btn-sm-custom btn-school-dynamic d-flex align-items-center gap-1">
+                            <i class="bi bi-chat-heart"></i> عرض ملاحظات الأهل
+                        </a>
                     </div>
+                    @php $compositeClassName = $className; @endphp
                 </div>
 
+                <div class="collapse" id="studentsCollapse{{ $loop->index }}">
                 <div class="card-body p-0">
                     <div class="table-responsive">
                         <table class="table table-hover align-middle text-center mb-0 small">
@@ -164,8 +281,10 @@
                                 <tr>
                                     <th class="py-2.5">#</th>
                                     <th class="py-2.5 text-start ps-3">اسم الطالب</th>
+                                    <th class="py-2.5">الشعبة</th>
                                     <th class="py-2.5">العمر</th>
                                     <th class="py-2.5">الحالة الصحية</th>
+                                    <th class="py-2.5">ولي الأمر</th> <!-- العمود الجديد -->
                                     <th class="py-2.5">الأساتذة المدرسون</th>
                                     <th class="py-2.5">المعدل العام</th>
                                     <th class="py-2.5">تفاصيل السجلات</th>
@@ -177,10 +296,26 @@
                                     <tr>
                                         <td class="fw-bold text-muted">{{ $index + 1 }}</td>
                                         <td class="text-start ps-3 fw-bold text-dark">{{ $student->name }}</td>
+                                        <td>
+                                            @if($student->section)
+                                                <span class="badge rounded-pill"
+                                                      style="background-color: color-mix(in srgb, var(--primary-color) 12%, #ffffff); color: var(--primary-color); border: 1px solid color-mix(in srgb, var(--primary-color) 30%, transparent);">
+                                                    {{ $student->section }}
+                                                </span>
+                                            @else
+                                                <span class="text-muted small">-</span>
+                                            @endif
+                                        </td>
                                         <td class="text-secondary">{{ $student->age }} سنة</td>
                                         <td>
                                             <span class="badge bg-light text-dark border">
                                                 {{ $student->health_status ?? 'سليم' }}
+                                            </span>
+                                        </td>
+                                        <!-- عرض اسم ولي الأمر -->
+                                        <td>
+                                            <span class="fw-semibold text-primary">
+                                                {{ $student->parent ? $student->parent->name : 'غير محدد' }}
                                             </span>
                                         </td>
                                         <td>
@@ -200,54 +335,10 @@
                                             @endif
                                         </td>
                                         <td>
-                                            <!-- زر عرض السجلات باللون الديناميكي -->
-                                            <button type="button" class="btn btn-sm-custom btn-school-dynamic py-1 px-2.5 d-inline-flex align-items-center gap-1" data-bs-toggle="modal" data-bs-target="#studentModal{{ $student->id }}">
+                                            <!-- زر عرض السجلات: ينقل لصفحة السجلات الخاصة بالطالب -->
+                                            <a href="{{ route('manager.student.records', $student->id) }}" class="btn btn-sm-custom btn-school-dynamic py-1 px-2.5 d-inline-flex align-items-center gap-1">
                                                 <i class="bi bi-clock-history"></i> عرض السجلات
-                                            </button>
-
-                                            <!-- Modal عرض السجلات -->
-                                            <div class="modal fade text-start" id="studentModal{{ $student->id }}" tabindex="-1" aria-hidden="true">
-                                                <div class="modal-dialog modal-lg modal-dialog-centered">
-                                                    <div class="modal-content text-end rounded-4">
-                                                        <div class="modal-header border-0 pb-0">
-                                                            <h6 class="modal-title fw-bold">سجلات الطالب: {{ $student->name }} - {{ $className }}</h6>
-                                                            <button type="button" class="btn-close ms-0 me-auto" data-bs-dismiss="modal"></button>
-                                                        </div>
-                                                        <div class="modal-body">
-                                                            @if($student->dailyChanges->isEmpty())
-                                                                <p class="text-center text-muted py-3 small mb-0">لا توجد سجلات يومية أو علامات للطفل بعد.</p>
-                                                            @else
-                                                                <table class="table table-sm table-striped text-center align-middle mb-0">
-                                                                    <thead>
-                                                                        <tr>
-                                                                            <th>المادة / النشاط</th>
-                                                                            <th>الدرجة</th>
-                                                                            <th>الملاحظة</th>
-                                                                            <th>التاريخ</th>
-                                                                        </tr>
-                                                                    </thead>
-                                                                    <tbody>
-                                                                        @foreach($student->dailyChanges as $change)
-                                                                            <tr>
-                                                                                <td>{{ $change->subject }}</td>
-                                                                                <td>
-                                                                                    @if($change->score !== null)
-                                                                                        <span class="badge bg-success">{{ $change->score }}</span>
-                                                                                    @else
-                                                                                        -
-                                                                                    @endif
-                                                                                </td>
-                                                                                <td>{{ $change->note ?? '-' }}</td>
-                                                                                <td>{{ \Carbon\Carbon::parse($change->recorded_at)->format('Y-m-d') }}</td>
-                                                                            </tr>
-                                                                        @endforeach
-                                                                    </tbody>
-                                                                </table>
-                                                            @endif
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
+                                            </a>
                                         </td>
                                         <td>
                                             <div class="d-flex justify-content-center">
@@ -266,6 +357,7 @@
                             </tbody>
                         </table>
                     </div>
+                </div>
                 </div>
             </div>
         @endforeach

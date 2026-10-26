@@ -121,8 +121,22 @@
                         <!-- الصف الدراسي وولي الأمر -->
                         <div class="row g-3 mb-3.5">
                             <div class="col-md-6">
-                                <label for="class" class="form-label">الصف والعام الدراسي <span class="text-danger">*</span></label>
-                                <input type="text" name="class" id="class" class="form-control" placeholder="مثال: الصف الأول 2026" value="{{ old('class', $child->class ?? '') }}" required>
+                                <label for="class" class="form-label">الصف الدراسي <span class="text-danger">*</span></label>
+                                <select name="class" id="class" class="form-select" required>
+                                    <option value="">-- اختر الصف --</option>
+                                    @foreach(($school?->classes ?? []) as $cls)
+                                        <option value="{{ $cls }}" {{ old('class', $child->class ?? '') == $cls ? 'selected' : '' }}>{{ $cls }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="section" class="form-label">الشعبة <span class="text-danger">*</span></label>
+                                <select name="section" id="section" class="form-select" required>
+                                    <option value="">-- اختر الشعبة --</option>
+                                    @foreach(($school?->sections ?? []) as $sec)
+                                        <option value="{{ $sec }}" {{ old('section', $child->section ?? '') == $sec ? 'selected' : '' }}>{{ $sec }}</option>
+                                    @endforeach
+                                </select>
                             </div>
                             <div class="col-md-6">
                                 <label for="parent_id" class="form-label">ولي الأمر <small class="text-muted fw-normal">(اختياري)</small></label>

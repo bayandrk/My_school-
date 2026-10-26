@@ -1,6 +1,7 @@
 <?php
 
 namespace App\Http\Controllers;
+use App\Models\School;
 use App\Notifications\ParentNoteNotification;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -14,8 +15,14 @@ class ParentController extends Controller
     {
         $this->checkParent();
 
+        $parent = Auth::user();
+
+        // مدارس ولي الأمر (من الجدول الوسيط) + كل المدارس المتاحة للانضمام
+        $mySchools   = $parent->schools()->orderBy('name')->get();
+        $otherSchools = School::whereNotIn('id', $mySchools->pluck('id'))->orderBy('name')->get();
+
         // جلب أطفال ولي الأمر النشطين فقط (استبعاد المؤرشفين) مع سجل اليوم
-        $children = Child::where('parent_id', auth()->id())
+        $children = Child::where('parent_id', $parent->id)
             ->where(function($q) {
                 $q->where('status', 'active')
                   ->orWhereNull('status');
@@ -26,7 +33,99 @@ class ParentController extends Controller
             }])
             ->get();
 
-        return view('parent.dashboard', compact('children'));
+        return view('parent.dashboard', compact('children', 'mySchools', 'otherSchools'));
+    }
+
+    /** صفحة الانضمام لمدرسة (بحث + قائمة المدارس + حالة الطلبات) */
+    public function joinSchoolPage(Request $request)
+    {
+        $this->checkParent();
+
+        $parent = Auth::user();
+        $search = $request->input('search');
+
+        // مدارس الأم الحالية (المضمومة فعلياً)
+        $mySchools = $parent->schools()->orderBy('name')->get();
+
+        // المدارس المتاحة للانضمام (غير المضمومة) مع دعم البحث بالاسم
+        $availableSchools = School::whereNotIn('id', $mySchools->pluck('id'))
+            ->when($search, function($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%");
+            })
+            ->orderBy('name')
+            ->get();
+
+        // طلباتي المعلقة والسابقة
+        $myRequests = \App\Models\SchoolJoinRequest::with('school')
+            ->where('parent_id', $parent->id)
+            ->latest()
+            ->get();
+
+        return view('parent.join_school', compact('mySchools', 'availableSchools', 'myRequests', 'search'));
+    }
+
+    /** إرسال طلب انضمام لمدرسة (يحتاج موافقة المدير) */
+    public function joinSchool(Request $request)
+    {
+        $this->checkParent();
+
+        $request->validate([
+            'school_id' => 'required|exists:schools,id',
+        ]);
+
+        $parent = Auth::user();
+
+        // إذا هي مضمومة أصلاً
+        if ($parent->schools()->where('schools.id', $request->school_id)->exists()) {
+            return back()->with('error', 'أنتي منضمة لهذه المدرسة بالفعل.');
+        }
+
+        // إذا عندها طلب معلق على نفس المدرسة
+        $pending = \App\Models\SchoolJoinRequest::where('parent_id', $parent->id)
+            ->where('school_id', $request->school_id)
+            ->where('status', 'pending')
+            ->first();
+        if ($pending) {
+            return back()->with('error', 'عندك طلب معلق لهذه المدرسة بالفعل — بانتظار موافقة المدير.');
+        }
+
+        // إنشاء الطلب (معلق حتى يقبله المدير)
+        $joinRequest = \App\Models\SchoolJoinRequest::create([
+            'parent_id' => $parent->id,
+            'school_id' => $request->school_id,
+            'status'    => 'pending',
+        ]);
+
+        // إرسال إشعار لمدير المدرسة
+        $school = \App\Models\School::find($request->school_id);
+        if ($school) {
+            $manager = \App\Models\User::where('school_id', $school->id)->where('role', 'manager')->first();
+            if ($manager) {
+                try {
+                    $manager->notify(new \App\Notifications\ManagerJoinRequestNotification($parent->name, 'parent'));
+                } catch (\Exception $e) {}
+            }
+        }
+
+        return redirect()->route('parent.schools.join.page')->with('success', 'تم إرسال طلب الانضمام — سيتم إضافة المدرسة عند موافقة المدير.');
+    }
+
+    /** ترك مدرسة من داشبورد الأم */
+    public function leaveSchool(Request $request)
+    {
+        $this->checkParent();
+
+        $request->validate([
+            'school_id' => 'required|exists:schools,id',
+        ]);
+
+        $parent = Auth::user();
+        $parent->schools()->detach($request->school_id);
+
+        $school = School::find($request->school_id);
+
+        return redirect()->route('parent.dashboard')
+            ->with('success', 'تمت إزالة مدرسة: ' . $school->name . ' من حسابك.');
     }
 
     public function showChild(Child $child)
@@ -38,12 +137,64 @@ class ParentController extends Controller
             abort(403, 'غير مصرح لك بعرض بيانات هذا الطفل.');
         }
 
-        // جلب العلاقات المرتبطة بالطفل (الأساتذة والملاحظات والدرجات)
-        $child->load(['teachers', 'dailyChanges']);
+        // جلب العلاقات المرتبطة بالطفل (الأساتذة والملاحظات والدرجات + ردود المعلمة على ملاحظات الأم)
+        $child->load(['teachers', 'dailyChanges.replies']);
 
-        return view('parent.child_show', compact('child'));
+        // سجلات اليوم الخاصة بالمعلمة فقط (التي ليست ملاحظة ولي أمر وليست رد معلمة)
+        $todayRecords = $child->dailyChanges()
+            ->where('source', '!=', 'parent_note')
+            ->where('source', '!=', 'teacher_reply')
+            ->whereNull('parent_id')
+            ->whereDate('recorded_at', Carbon::today())
+            ->orderBy('recorded_at', 'desc')
+            ->get();
+
+        // السجلات السابقة للمعلمة فقط (التي ليست ملاحظة ولي أمر وليست رد معلمة)
+        $previousRecordsQuery = $child->dailyChanges()
+            ->where('source', '!=', 'parent_note')
+            ->where('source', '!=', 'teacher_reply')
+            ->whereNull('parent_id')
+            ->orderBy('recorded_at', 'desc');
+
+        $initialPreviousRecords = (clone $previousRecordsQuery)->take(10)->get();
+        $totalPreviousCount = (clone $previousRecordsQuery)->count();
+
+        return view('parent.child_show', compact('child', 'todayRecords', 'initialPreviousRecords', 'totalPreviousCount'));
     }
 
+    public function getPreviousRecords(Request $request, Child $child)
+    {
+        $this->checkParent();
+
+        if ($child->parent_id !== auth()->id() || $child->status === 'archived') {
+            abort(403);
+        }
+
+        $records = $child->dailyChanges()
+            ->where('source', '!=', 'parent_note')
+            ->where('source', '!=', 'teacher_reply')
+            ->whereNull('parent_id')
+            ->orderBy('recorded_at', 'desc')
+            ->get();
+
+        $html = '';
+        foreach ($records as $index => $record) {
+            $subject = $record->subject ?? ($record->topic ?? '-');
+            $score = ($record->score ?? $record->result) !== null ? '<span class="score-badge">' . ($record->score ?? $record->result) . '</span>' : '<span class="text-muted">-</span>';
+            $note = $record->note ?? ($record->notes ?? ($record->description ?? '-'));
+            $date = \Carbon\Carbon::parse($record->recorded_at ?? ($record->report_date ?? $record->created_at))->format('H:i | Y-m-d');
+
+            $html .= '<tr class="prev-row-item">
+                <td class="fw-bold text-muted">' . ($index + 1) . '</td>
+                <td><span class="subject-badge">' . $subject . '</span></td>
+                <td>' . $score . '</td>
+                <td class="text-secondary fw-semibold">' . $note . '</td>
+                <td><span class="date-badge">' . $date . '</span></td>
+            </tr>';
+        }
+
+        return response()->json(['html' => $html]);
+    }
     public function profile()
     {
         $this->checkParent();
@@ -117,9 +268,20 @@ public function updateChildNote(Request $request, Child $child)
         abort(403);
     }
 
-    $child->update([
-        'parent_note' => $request->parent_note,
-    ]);
+    // حفظ الملاحظة في جدول daily_changes (ملاحظة ولي الأمر)
+    // ويُسجل مُعرّف الأم (parent_id) تلقائياً
+    if ($request->filled('parent_note')) {
+        \App\Models\DailyChange::create([
+            'child_id'    => $child->id,
+            'teacher_id'  => null,
+            'parent_id'   => auth()->id(),
+            'recorded_at' => now(),
+            'subject'     => 'ملاحظة ولي الأمر',
+            'note'        => $request->parent_note,
+            'score'       => null,
+            'source'      => 'parent_note',
+        ]);
+    }
 
     return back()->with('success', 'تم حفظ وتحديث ملاحظة ولي الأمر بنجاح.');
 }
@@ -131,13 +293,25 @@ public function sendTeacherNote(Request $request, Child $child)
         'note'          => 'required|string|max:1000',
     ]);
 
-    // دمج الملاحظة الجديدة مع الملاحظات السابقة إن وجدت لكي لا تُحذف القديمة
-    $newNoteText = "• [" . now()->format('Y-m-d H:i') . "] " . $request->note;
-    $finalNotes = $child->parent_note ? $child->parent_note . "\n\n" . $newNoteText : $newNoteText;
+    // حفظ الملاحظة في جدول daily_changes (ملاحظة ولي الأمر) - يُحدد النوع تلقائياً source = parent_note
+    // ويُسجل مُعرّف الأم (parent_id) تلقائياً
+    $parentNote = \App\Models\DailyChange::create([
+        'child_id'    => $child->id,
+        'teacher_id'  => null,
+        'parent_id'   => auth()->id(),
+        'recorded_at' => now(),
+        'subject'     => 'ملاحظة ولي الأمر',
+        'note'        => $request->note,
+        'score'       => null,
+        'source'      => 'parent_note', // تلقائياً: هذه ملاحظة أم وليست سجل من المعلمة
+    ]);
 
-    // حفظ الملاحظة المدمجة
-    $child->update([
-        'parent_note' => $finalNotes,
+    // أيضاً في جدول ملاحظات الأهل (للربط مع رد المعلمة)
+    \App\Models\ParentTeacherNote::create([
+        'child_id'     => $child->id,
+        'parent_id'    => auth()->id(),
+        'parent_note'  => $request->note,
+        'daily_change_id' => $parentNote->id,
     ]);
 
     // إرسال الإشعارات للمعلمين

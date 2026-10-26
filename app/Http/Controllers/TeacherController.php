@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Child;
 use App\Models\DailyChange;
+use App\Models\School;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -13,6 +14,18 @@ use App\Notifications\DailyChangeAddedNotification;
 
 class TeacherController extends Controller
 {
+    /** اختصار: مدرسة المعلم الحالي */
+    private function school(): ?School
+    {
+        return Auth::user()->school;
+    }
+
+    private function checkTeacher()
+    {
+        if (auth()->user()->role !== User::ROLE_TEACHER || auth()->user()->status !== User::STATUS_APPROVED) {
+            abort(403, 'غير مصرح لك بدخول هذه الصفحة.');
+        }
+    }
     // 1. الداش بورد الرئيسي (المهام وأحدث النشاطات مع استبعاد الطلاب المؤرشفين)
     public function dashboard()
     {
@@ -55,7 +68,7 @@ class TeacherController extends Controller
     public function profile()
     {
         $this->checkTeacher();
-        $teacher = Auth::user(); 
+        $teacher = Auth::user();
         return view('teacher.profile', compact('teacher'));
     }
 
@@ -88,11 +101,32 @@ class TeacherController extends Controller
     {
         $this->checkTeacher();
 
-        $parents = User::where('role', 'parent')
-            ->where('status', 'approved')
-            ->get();
+        $parents = $this->availableParents();
+        $school = $this->school();
 
-        return view('teacher.create_child', compact('parents'));
+        return view('teacher.create_child', compact('parents', 'school'));
+    }
+
+    /**
+     * أولياء الأمور المتاحون للمعلمة:
+     * - أولياء أمور مدرستها (approved)
+     * - وأولياء أمور بدون مدرسة (school_id = NULL) لكي يمكن ربطهم عند الإضافة
+     */
+    private function availableParents()
+    {
+        $schoolId = $this->school()?->id;
+
+        // أولياء الأمور المرتبطون بمدرسة المعلم عبر الجدول الوسيط (school_parent)
+        return User::query()
+            ->role(User::ROLE_PARENT)
+            ->status(User::STATUS_APPROVED)
+            ->where(function ($q) use ($schoolId) {
+                $q->where('school_id', $schoolId)
+                  ->orWhereNull('school_id')
+                  ->orWhereHas('schools', fn ($s) => $s->where('schools.id', $schoolId));
+            })
+            ->orderBy('name')
+            ->get();
     }
 
     // حفظ الطفل الجديد وربطه بمدير المدرسة المعني تلقائياً
@@ -105,39 +139,61 @@ class TeacherController extends Controller
             'gender'        => 'required|in:male,female',
             'age'           => 'required|integer|min:1|max:20',
             'class'         => 'required|string|max:255',
+            'section'       => 'required|string|max:100',
             'health_status' => 'nullable|string',
             'parent_id'     => 'nullable|exists:users,id',
             'image'         => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
         ]);
 
+        // التحقق من أن الصف والشعبة من قوائم المدرسة (التي أضافها المدير)
+        $school = $this->school();
+        if ($school) {
+            if (!in_array($request->class, $school->classes ?? [])) {
+                return back()->withErrors(['class' => 'الصف المختار غير موجود في قوائم المدرسة.'])->withInput();
+            }
+            if (!in_array($request->section, $school->sections ?? [])) {
+                return back()->withErrors(['section' => 'الشعبة المختارة غير موجودة في قوائم المدرسة.'])->withInput();
+            }
+        }
+
         $teacher = Auth::user();
 
-        // 1. جلب المدير المسؤول عن مدرسة هذا المعلم لربط الطالب به
-        $manager = User::where('role', 'manager')
-            ->where('school_name', $teacher->school_name)
-            ->first();
-
+        // 1. الطالب الجديد يرتبط مباشرة بمدرسة المعلم (المدرسة هي الكيان المركزي)
+        // ويُسند أيضًا لأول مدير في المدرسة للحفاظ على التوافق مع العروض القديمة.
         $imagePath = null;
         if ($request->hasFile('image')) {
             $imagePath = $request->file('image')->store('children_images', 'public');
         }
 
         // 2. إنشاء الطالب الجديد وتعيين حالته تلقائياً كـ active
+        // ربط ولي الأمر بالمدرسة في الجدول الوسيط (والتحديث المتبقي لschool_id للتوافق)
+        if ($request->parent_id) {
+            $selectedParent = User::find($request->parent_id);
+            if ($selectedParent && $this->school()) {
+                $selectedParent->schools()->syncWithoutDetaching([$this->school()->id]);
+                if (is_null($selectedParent->school_id)) {
+                    $selectedParent->update(['school_id' => $this->school()->id]);
+                }
+            }
+        }
+
         $child = Child::create([
             'name'          => $request->name,
             'gender'        => $request->gender,
             'age'           => $request->age,
             'class'         => $request->class,
-            'health_status' => $request->health_status,
+            'section'       => $request->section,
+            'health_status' => $request->health_status ?? '',
             'parent_id'     => $request->parent_id,
-            'manager_id'    => $manager ? $manager->id : null,
+            'school_id'     => $this->school()?->id, // الربط الأساسي
             'image'         => $imagePath,
             'status'        => 'active',
         ]);
 
         // 3. البحث عن جميع الأساتذة في نفس المدرسة الذين لديهم طلاب في هذا الصف
-        $teachersInSameClassAndSchool = User::where('role', 'teacher')
-            ->where('school_name', $teacher->school_name)
+        $teachersInSameClassAndSchool = User::query()
+            ->role(User::ROLE_TEACHER)
+            ->school($this->school())
             ->whereHas('students', function ($query) use ($request) {
                 $query->where('class', $request->class);
             })
@@ -209,6 +265,12 @@ class TeacherController extends Controller
             $query->where('children.class', $selectedClass);
         }
 
+        // فلتر الشعبة
+        $selectedSection = $request->get('section_name');
+        if ($selectedSection) {
+            $query->where('children.section', $selectedSection);
+        }
+
         if ($search) {
             $query->where('children.name', 'like', "%{$search}%");
         }
@@ -238,11 +300,43 @@ class TeacherController extends Controller
             'الصف الثاني عشر'  => 12,
         ];
 
-        $groupedClasses = $students->groupBy('class')->sortBy(function ($students, $className) use ($classOrder) {
-            return $classOrder[$className] ?? 99;
+        // قائمة الشعب المتاحة (من قوائم المدرسة التي أضافها المدير)
+        $availableSections = $this->school()?->sections ?? [];
+        $availableSubjects = $this->school()?->subjects ?? [];
+
+        // 4. تجميع الطلاب حسب "الصف + الشعبة" بحيث تظهر كل شعبة كلوحتها الخاصة
+        $groupedClasses = $students->groupBy(function ($student) {
+            $section = $student->section ? ' - الشعبة ' . $student->section : '';
+            return $student->class . $section;
+        })->sortBy(function ($students, $key) use ($classOrder) {
+            // نستخرج اسم الصف فقط من المفتاح المركب للترتيب المدرسي
+            foreach ($classOrder as $className => $order) {
+                if (mb_strpos($key, $className) !== false) {
+                    return $order * 100 + strcmp($key, $className);
+                }
+            }
+            return 99000 + strcmp($key, '');
         });
 
-        return view('teacher.classes', compact('groupedClasses', 'availableYears', 'selectedYear', 'availableClasses', 'selectedClass', 'search'));
+        return view('teacher.classes', compact(
+            'groupedClasses', 'availableYears', 'selectedYear', 'availableClasses',
+            'availableSections', 'availableSubjects', 'selectedClass', 'selectedSection', 'search'
+        ));
+    }
+
+    /**
+     * مفك مفتاح البطاقة المركب: "الصف X - الشعبة ص" → [اسم الصف، الشعبة]
+     * لأن أزرار العرض بتستقبل المفتاح الكامل من صفحة صفوفي وطلابي.
+     */
+    private function splitClassName(?string $composite): array
+    {
+        $composite = trim((string)$composite);
+
+        if (preg_match('/^(.*?)\s*-\s*الشعبة\s*(.+)$/u', $composite, $m)) {
+            return [trim($m[1]), trim($m[2])];
+        }
+
+        return [$composite, null];
     }
 
     // 4. صفحة عرض العلامات الخاصة بصف معين (للطلاب المفعلين فقط)
@@ -250,14 +344,17 @@ class TeacherController extends Controller
 {
     $this->checkTeacher();
     $teacher = auth()->user();
-    
-    $studentName = $request->input('student_name'); 
-    $subject     = $request->input('subject');      
-    $date        = $request->input('date');         
 
-    // 1. جلب معرفات الطلاب المفعلين لهذا الصف
+    $studentName = $request->input('student_name');
+    $subject     = $request->input('subject');
+    $date        = $request->input('date');
+
+    [$classOnly, $sectionOnly] = $this->splitClassName($className);
+
+    // 1. جلب معرفات الطلاب المفعلين لهذا الصف (مع الشعبة إن وجدت بالمفتاح المركب)
     $studentIds = $teacher->students()
-        ->where('class', $className)
+        ->where('class', $classOnly)
+        ->when($sectionOnly, fn($q) => $q->where('section', $sectionOnly))
         ->where(function($q) {
             $q->where('children.status', 'active')->orWhereNull('children.status');
         })
@@ -267,8 +364,16 @@ class TeacherController extends Controller
         ->pluck('children.id');
 
     // 2. استعلام جلب سجلات العلامات مع الترتيب الأبجدي للطلاب والترقيم (10 بـ 10)
+    // نستبعد ملاحظات الأهل وردود الأنسة، والمواضيع المخصصة (يلي مش من قوائم المواد)
+    $schoolSubjects = $this->school()?->subjects ?? [];
+
     $query = DailyChange::whereIn('child_id', $studentIds)
         ->whereNotNull('score')
+        ->whereNotIn('source', ['parent_note', 'teacher_reply'])
+        ->when(!empty($schoolSubjects), function($q) use ($schoolSubjects) {
+            // العلامات: بس المواد المدرسية المعتمدة (مش الأنشطة المخصصة)
+            $q->whereIn('subject', $schoolSubjects);
+        })
         ->with(['child' => function($q) {
             $q->orderBy('name', 'asc'); // الترتيب الأبجدي لأسمات الطلاب
         }])
@@ -307,12 +412,15 @@ public function classNotes(Request $request, $className)
     $teacher = auth()->user();
 
     $studentName = $request->input('student_name');
-    $subject     = $request->input('subject');     
-    $date        = $request->input('date');        
+    $subject     = $request->input('subject');
+    $date        = $request->input('date');
 
-    // 1. جلب معرفات الطلاب المفعلين لهذا الصف
+    [$classOnly, $sectionOnly] = $this->splitClassName($className);
+
+    // 1. جلب معرفات الطلاب المفعلين لهذا الصف (مع الشعبة إن وجدت بالمفتاح المركب)
     $studentIds = $teacher->students()
-        ->where('class', $className)
+        ->where('class', $classOnly)
+        ->when($sectionOnly, fn($q) => $q->where('section', $sectionOnly))
         ->where(function($q) {
             $q->where('children.status', 'active')->orWhereNull('children.status');
         })
@@ -321,14 +429,22 @@ public function classNotes(Request $request, $className)
         })
         ->pluck('children.id');
 
-    // 2. استعلام جلب السجلات: (إما أن تحتوي على ملاحظة نصية، أو أن تكون بدون علامة score)
+    // 2. استعلام جلب السجلات "يلي بضل": موضوع مخصص (مو من قوائم المواد)
+    // ولا ملاحظة ولي أمر ولا رد أنسة — لهيك نستبعد مصادر السجلات الخاصة بالأهل
+    $schoolSubjects = $this->school()?->subjects ?? [];
+
     $query = DailyChange::whereIn('child_id', $studentIds)
-        ->where(function($q) {
-            $q->where(function($sub) {
-                $sub->whereNotNull('note')->where('note', '!=', '');
-            })
-            ->orWhereNull('score'); // الأنشطة والملاحظات اليومية التي ليس لها درجة
+        ->when(!empty($schoolSubjects), function($q) use ($schoolSubjects) {
+            // موضوع مخصص: مش موجود بقوائم المدرسة (NOT IN مع تجاهل NULL آمناً)
+            $q->where(function($sub) use ($schoolSubjects) {
+                $sub->whereNotIn('subject', $schoolSubjects)
+                    ->orWhereNull('subject');
+            });
+        }, function($q) {
+            // إذا ما في قائمة مواد مدرسية: نرجع للسلوك القديم (بلا درجة = ملاحظة)
+            $q->whereNull('score');
         })
+        ->whereNotIn('source', ['parent_note', 'teacher_reply'])
         ->with('child');
 
     if ($subject) {
@@ -381,9 +497,19 @@ public function classNotes(Request $request, $className)
                 $q->where('children.status', 'active')->orWhereNull('children.status');
             })->get();
 
-        $studentsGroupedByClass = $students->groupBy('class');
+        // تجميع حسب مفتاح مركب "الصف||الشعبة" (للتسلسل: صف ← شعبة ← طفل)
+        $studentsGroupedByClassSection = $students->groupBy(function ($child) {
+            return $child->class . '||' . ($child->section ?? '');
+        })->map(function ($group) {
+            return $group->map(fn ($s) => ['id' => $s->id, 'name' => $s->name]);
+        });
 
-        return view('teacher.daily_changes', compact('dailyChanges', 'studentsGroupedByClass', 'selectedDate'));
+        // قائمة المواد من قوائم المدرسة (التي أضافها المدير)
+        $schoolSubjects = $this->school()?->subjects ?? [];
+
+        return view('teacher.daily_changes', compact(
+            'dailyChanges', 'studentsGroupedByClassSection', 'schoolSubjects', 'selectedDate'
+        ));
     }
 
     // 7. صفحة سجل الطالب المنفرد (مع الترقيم 10 بـ 10 والفلترة)
@@ -400,8 +526,10 @@ public function classNotes(Request $request, $className)
             })
             ->firstOrFail();
 
-        // بدء استعلام السجلات
-        $query = DailyChange::where('child_id', $student->id);
+        // بدء استعلام السجلات — نستبعد ملاحظات الأهل وردود الأنسة
+        // (هي عندها صفحة لحالها "ملاحظات الأهل" لهيك)
+        $query = DailyChange::where('child_id', $student->id)
+            ->whereNotIn('source', ['parent_note', 'teacher_reply']);
 
         // 1. الفلترة حسب التاريخ (إذا أُدخل)
         if ($request->filled('date')) {
@@ -503,11 +631,9 @@ public function classNotes(Request $request, $className)
     {
         $this->checkTeacher();
 
-        $parents = User::where('role', 'parent')
-            ->where('status', 'approved')
-            ->get();
+        $parents = $this->availableParents();
 
-        return view('teacher.edit_child', compact('child', 'parents'));
+        return view('teacher.edit_child', compact('child', 'parents'))->with('school', $this->school());
     }
 
     public function updateChild(Request $request, Child $child)
@@ -519,14 +645,37 @@ public function classNotes(Request $request, $className)
             'gender'        => 'required|in:male,female',
             'age'           => 'required|integer|min:1|max:20',
             'class'         => 'required|string|max:255',
+            'section'       => 'required|string|max:100',
             'health_status' => 'nullable|string',
             'parent_id'     => 'nullable|exists:users,id',
             'image'         => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
         ]);
 
+        // التحقق من قوائم المدرسة
+        $school = $this->school();
+        if ($school) {
+            if (!in_array($request->class, $school->classes ?? [])) {
+                return back()->withErrors(['class' => 'الصف المختار غير موجود في قوائم المدرسة.'])->withInput();
+            }
+            if (!in_array($request->section, $school->sections ?? [])) {
+                return back()->withErrors(['section' => 'الشعبة المختارة غير موجودة في قوائم المدرسة.'])->withInput();
+            }
+        }
+
         $imagePath = $child->image;
         if ($request->hasFile('image')) {
             $imagePath = $request->file('image')->store('children_images', 'public');
+        }
+
+        // ربط ولي الأمر بالمدرسة في الجدول الوسيط (والتحديث المتبقي للتوافق)
+        if ($request->parent_id) {
+            $selectedParent = User::find($request->parent_id);
+            if ($selectedParent && $this->school()) {
+                $selectedParent->schools()->syncWithoutDetaching([$this->school()->id]);
+                if (is_null($selectedParent->school_id)) {
+                    $selectedParent->update(['school_id' => $this->school()->id]);
+                }
+            }
         }
 
         $child->update([
@@ -534,6 +683,7 @@ public function classNotes(Request $request, $className)
             'gender'        => $request->gender,
             'age'           => $request->age,
             'class'         => $request->class,
+            'section'       => $request->section,
             'health_status' => $request->health_status,
             'parent_id'     => $request->parent_id,
             'image'         => $imagePath,
@@ -571,17 +721,20 @@ public function parentNotes(Request $request)
     $teacher = auth()->user();
     $search  = $request->input('search');
 
-    // جلب الطلاب المرتبطين بالمعلمة والذين لديهم ملاحظة من ولي الأمر (مع دعم البحث)
-    $studentsWithNotes = \App\Models\Child::whereHas('teachers', function($query) use ($teacher) {
-            $query->where('users.id', $teacher->id);
+    // جلب ملاحظات الأهل (source = parent_note) من جدول daily_changes لطلاب المعلمة
+    $studentsWithNotes = \App\Models\DailyChange::where('source', 'parent_note')
+        ->whereHas('child', function($q) use ($teacher, $search) {
+            $q->whereHas('teachers', function($tq) use ($teacher) {
+                $tq->where('users.id', $teacher->id);
+            })
+            ->when($search, function($sq) use ($search) {
+                $sq->where('name', 'like', "%{$search}%");
+            });
         })
-        ->whereNotNull('parent_note')
-        ->where('parent_note', '!=', '')
-        ->when($search, function($query) use ($search) {
-            $query->where('name', 'like', "%{$search}%");
-        })
-        ->with('parent')
-        ->get();
+        ->with(['child.parent', 'replies.teacher'])
+        ->orderBy('recorded_at', 'desc')
+        ->get()
+        ->groupBy('child_id');
 
     return view('teacher.parent_notes', compact('studentsWithNotes', 'search'));
 }
@@ -589,7 +742,7 @@ public function parentNotes(Request $request)
 public function readNotification($id)
 {
     $notification = auth()->user()->notifications()->where('id', $id)->first();
-    
+
     if ($notification) {
         $notification->markAsRead();
         return redirect($notification->data['url'] ?? route('teacher.parent-notes'));
@@ -600,24 +753,37 @@ public function readNotification($id)
 
 
 
-public function replyToParentNote(Request $request, \App\Models\ParentTeacherNote $note)
+public function replyToParentNote(Request $request, \App\Models\DailyChange $note)
 {
     $request->validate([
-        'teacher_reply' => 'required|string|max:1000',
+        'note' => 'required|string|max:1000',
     ]);
 
-    $note->update([
-        'teacher_reply'          => $request->teacher_reply,
-        'replied_by_teacher_id' => auth()->id(),
+    // حفظ رد المعلمة كسجل جديد في daily_changes مربوط بملاحظة الأم الأصلية
+    \App\Models\DailyChange::create([
+        'child_id'       => $note->child_id,
+        'teacher_id'     => auth()->id(),
+        'recorded_at'    => now(),
+        'subject'        => 'رد المعلمة',
+        'note'           => $request->note,
+        'score'          => null,
+        'source'         => 'teacher_reply',
+        'parent_note_id' => $note->id,
     ]);
+
+    // إرسال إشعار لولي الأمر (الأم) صاحبة الملاحظة
+    $parentUser = $note->parent;
+    if (!$parentUser && $note->child && $note->child->parent_id) {
+        $parentUser = \App\Models\User::find($note->child->parent_id);
+    }
+
+    if ($parentUser) {
+        try {
+            $childName = $note->child?->name ?? 'الطفل';
+            $parentUser->notify(new \App\Notifications\TeacherReplyNotification($childName, $request->note));
+        } catch (\Exception $e) {}
+    }
 
     return back()->with('success', 'تم إرسال الرد بنجاح.');
 }
-    
-private function checkTeacher()
-    {
-        if (auth()->user()->role !== 'teacher' || auth()->user()->status !== 'approved') {
-            abort(403, 'غير مصرح لك بدخول هذه الصفحة.');
-        }
-    }
 }

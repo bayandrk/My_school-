@@ -12,6 +12,11 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware) {
         
+        // Register the admin-guard middleware with an alias so it can be applied to route groups.
+        $middleware->alias([
+            'admin' => \App\Http\Middleware\EnsureAdmin::class,
+        ]);
+
         // حل مشكلة التوجيه لمنع حلقة التكرار ERR_TOO_MANY_REDIRECTS
         $middleware->redirectTo(
             guests: '/login',

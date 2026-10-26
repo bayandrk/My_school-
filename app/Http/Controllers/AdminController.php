@@ -3,59 +3,41 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Services\ManagerLifecycleService;
 use Illuminate\Http\Request;
 
 class AdminController extends Controller
 {
-    // عرض لوحة تحكم الأدمن (الطلبات المعلقة + المفعلون + البحث + الترقيم 10 بـ 10)
+    public function __construct(
+        private readonly ManagerLifecycleService $managers,
+    ) {}
+
+    // عرض لوحة تحكم الأدمن الفارغة حالياً (تحتوي على النافبار فقط)
     public function dashboard(Request $request)
     {
-        $this->checkAdmin();
+        return view('admin.dashboard', [
+            'pendingCount'     => $this->managers->pendingManagers(null)->count(),
+            'deactivatedCount' => $this->managers->deactivatedManagersCount(),
+        ]);
+    }
 
-        $search = $request->input('search');
+    // عرض صفحة المهام (تحتوي على جدول الطلبات المعلقة والمفعلين والبحث)
+    public function tasks(Request $request)
+    {
+        $search =$request->input('search');
 
-        // 1. طلبات تسجيل المدراء المعلقة
-        $pendingManagersQuery = User::where('role', 'manager')
-            ->where('status', 'pending');
-
-        if ($search) {
-            $pendingManagersQuery->where(function($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('school_name', 'like', "%{$search}%");
-            });
-        }
-
-        $pendingManagers = $pendingManagersQuery->latest()->get();
-
-        // 2. قائمة المدراء المفعلين (مع البحث والترقيم 10 بـ 10)
-        $approvedManagersQuery = User::where('role', 'manager')
-            ->where('status', 'approved');
-
-        if ($search) {
-            $approvedManagersQuery->where(function($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('school_name', 'like', "%{$search}%");
-            });
-        }
-
-        $approvedManagers = $approvedManagersQuery->latest()
-            ->paginate(10)
-            ->appends($request->all());
-
-        // 3. عداد المدراء غير المفعلين
-        $deactivatedCount = User::where('role', 'manager')
-            ->where('status', 'deactivated')
-            ->count();
-
-        return view('admin.dashboard', compact('pendingManagers', 'approvedManagers', 'deactivatedCount', 'search'));
+        return view('admin.tasks', [
+            'pendingManagers'  => $this->managers->pendingManagers($search),
+            'approvedManagers' => $this->managers->approvedManagers($search),
+            'deactivatedCount' => $this->managers->deactivatedManagersCount(),
+            'search'           => $search,
+        ]);
     }
 
     // الموافقة على طلب مدير
     public function approveManager(User $manager)
     {
-        $this->checkAdmin();
-
-        $manager->update(['status' => 'approved']);
+        $this->managers->approve($manager);
 
         return back()->with('success', 'تمت الموافقة على حساب المدير بنجاح.');
     }
@@ -63,19 +45,15 @@ class AdminController extends Controller
     // رفض طلب مدير (حذفه فوراً من قاعدة البيانات)
     public function rejectManager(User $manager)
     {
-        $this->checkAdmin();
-
-        $manager->delete();
+        $this->managers->reject($manager);
 
         return back()->with('success', 'تم رفض طلب المدير وحذفه نهائياً من قاعدة البيانات.');
     }
 
-    // إلغاء تفعيل حساب مدير (نقل حالته إلى deactivated)
+    // إلغاء تفعيل حساب مدير
     public function deactivateManager(User $manager)
     {
-        $this->checkAdmin();
-
-        $manager->update(['status' => 'deactivated']);
+        $this->managers->deactivate($manager);
 
         return back()->with('success', 'تم إلغاء تفعيل حساب المدير ونقله لقائمة الحسابات غير المفعلة.');
     }
@@ -83,41 +61,25 @@ class AdminController extends Controller
     // عرض صفحة المدراء غير المفعلين
     public function deactivatedManagers()
     {
-        $this->checkAdmin();
-
-        $deactivatedManagers = User::where('role', 'manager')
-            ->where('status', 'deactivated')
-            ->latest()
-            ->get();
-
-        return view('admin.deactivated', compact('deactivatedManagers'));
+        return view('admin.deactivated', [
+            'deactivatedManagers' => $this->managers->deactivatedManagers(),
+        ]);
     }
 
     // إعادة تفعيل حساب مدير
     public function reactivateManager(User $manager)
     {
-        $this->checkAdmin();
+        $this->managers->reactivate($manager);
 
-        $manager->update(['status' => 'approved']);
-
-        return redirect()->route('admin.managers.deactivated')->with('success', 'تمت إعادة تفعيل حساب المدير بنجاح.');
+        return redirect()->route('admin.managers.deactivated')
+            ->with('success', 'تمت إعادة تفعيل حساب المدير بنجاح.');
     }
 
     // حذف حساب المدير نهائياً
     public function destroyManager(User $manager)
     {
-        $this->checkAdmin();
-
-        $manager->delete();
+        $this->managers->destroy($manager);
 
         return back()->with('success', 'تم حذف حساب المدير نهائياً من قاعدة البيانات.');
-    }
-
-    // فحص صلاحيات الأدمن
-    private function checkAdmin()
-    {
-        if (auth()->user()->role !== 'admin') {
-            abort(403, 'غير مصرح لك بدخول هذه الصفحة.');
-        }
     }
 }

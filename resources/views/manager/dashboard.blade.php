@@ -107,10 +107,10 @@
 
     <!-- كروت الإحصائيات -->
     <div class="row g-3 mb-4">
-        <div class="col-md-6">
+        <div class="col-md-4">
             <div class="stat-card d-flex align-items-center justify-content-between">
                 <div>
-                    <span class="text-muted small fw-bold d-block mb-1">طلبات الانضمام المعلقة</span>
+                    <span class="text-muted small fw-bold d-block mb-1">طلبات الأساتذة المعلقة</span>
                     <h4 class="fw-bold text-dark mb-0">
                         {{ method_exists($pendingTeachers, 'total') ? $pendingTeachers->total() : $pendingTeachers->count() }}
                     </h4>
@@ -120,7 +120,20 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-6">
+        <div class="col-md-4">
+            <div class="stat-card d-flex align-items-center justify-content-between">
+                <div>
+                    <span class="text-muted small fw-bold d-block mb-1">طلبات الأهل المعلقة</span>
+                    <h4 class="fw-bold text-dark mb-0">
+                        {{ isset($pendingJoinRequests) ? $pendingJoinRequests->count() : 0 }}
+                    </h4>
+                </div>
+                <div class="stat-icon">
+                    <i class="bi bi-people-fill"></i>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
             <div class="stat-card d-flex align-items-center justify-content-between">
                 <div>
                     <span class="text-muted small fw-bold d-block mb-1">الأساتذة المعتمدون</span>
@@ -128,6 +141,77 @@
                 </div>
                 <div class="stat-icon">
                     <i class="bi bi-person-check-fill"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- جدول طلبات انضمام الأهل المعلقة -->
+    <div class="row g-4 mb-4">
+        <div class="col-12">
+            <div class="card dashboard-card">
+                <div class="card-header card-header-custom d-flex justify-content-between align-items-center">
+                    <span class="d-flex align-items-center gap-2 text-dark fw-bold">
+                        <i class="bi bi-people-fill text-primary"></i> طلبات انضمام الأهل المعلقة
+                    </span>
+                    <span class="badge bg-primary bg-opacity-10 text-primary px-3 py-1.5 rounded-pill small fw-bold">
+                        {{ isset($pendingJoinRequests) ? $pendingJoinRequests->count() : 0 }}
+                    </span>
+                </div>
+                <div class="card-body p-3">
+                    @if(isset($pendingJoinRequests) && $pendingJoinRequests->isEmpty())
+                        <div class="text-center py-4">
+                            <div class="stat-icon mx-auto mb-2" style="width: 48px; height: 48px; font-size: 1.4rem;">
+                                <i class="bi bi-inbox-fill"></i>
+                            </div>
+                            <h6 class="fw-bold text-secondary mb-1 small">لا توجد طلبات انضمام أهل معلقة حالياً</h6>
+                            <p class="text-muted small mb-0">جميع طلبات الأهل تم التعامل معها بنجاح.</p>
+                        </div>
+                    @else
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle mb-0 text-center small">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th class="py-2.5">#</th>
+                                        <th class="py-2.5 text-start ps-3">اسم ولي الأمر</th>
+                                        <th class="py-2.5">البريد الإلكتروني</th>
+                                        <th class="py-2.5">الهاتف</th>
+                                        <th class="py-2.5" style="width: 220px;">الإجراءات</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach($pendingJoinRequests ?? [] as $index => $joinReq)
+                                        <tr>
+                                            <td class="fw-bold text-muted">{{ $index + 1 }}</td>
+                                            <td class="text-start ps-3 fw-bold text-dark">{{ $joinReq->parent->name ?? '-' }}</td>
+                                            <td class="text-secondary">{{ $joinReq->parent->email ?? '-' }}</td>
+                                            <td class="text-secondary">{{ $joinReq->parent->phone ?? '-' }}</td>
+                                            <td>
+                                                <div class="d-flex justify-content-center align-items-center gap-3">
+                                                    <!-- زر الموافقة -->
+                                                    <form action="{{ route('manager.join-requests.approve', $joinReq->id) }}" method="POST" class="m-0">
+                                                        @csrf
+                                                        @method('PATCH')
+                                                        <button type="submit" class="btn btn-action-approve">
+                                                            <i class="bi bi-check-lg"></i> موافقة
+                                                        </button>
+                                                    </form>
+                                                    <!-- زر الرفض -->
+                                                    <form action="{{ route('manager.join-requests.reject', $joinReq->id) }}" method="POST" class="m-0">
+                                                        @csrf
+                                                        @method('PATCH')
+                                                        <button type="submit" class="btn btn-action-reject" onclick="return confirm('هل تريد رفض طلب الانضمام هذا؟')">
+                                                            <i class="bi bi-x-lg"></i> رفض
+                                                        </button>
+                                                    </form>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    @endif
                 </div>
             </div>
         </div>

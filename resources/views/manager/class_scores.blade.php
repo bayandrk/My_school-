@@ -159,6 +159,7 @@
                                 <th class="py-3 text-start ps-4">اسم الطالب</th>
                                 <th class="py-3">المادة / النشاط</th>
                                 <th class="py-3">الدرجة</th>
+                                <th class="py-3">ملاحظة مرافقة</th>
                                 <th class="py-3">تاريخ التسجيل</th>
                             </tr>
                         </thead>
@@ -174,6 +175,9 @@
                                         </td>
                                         <td>
                                             <span class="score-badge">{{ $change->score }}</span>
+                                        </td>
+                                        <td class="text-secondary fw-semibold">
+                                            {{ $change->note ?? '-' }}
                                         </td>
                                         <td>
                                             <span class="date-badge">

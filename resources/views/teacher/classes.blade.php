@@ -156,6 +156,16 @@
                     @endforeach
                 </select>
 
+                <!-- فلتر الشعبة (من قوائم المدرسة) -->
+                <select name="section_name" class="form-select form-select-sm fw-semibold" style="width: 130px;">
+                    <option value="">كل الشعب</option>
+                    @foreach($availableSections ?? [] as $section)
+                        <option value="{{ $section }}" {{ request('section_name') == $section ? 'selected' : '' }}>
+                            {{ $section }}
+                        </option>
+                    @endforeach
+                </select>
+
                 <select name="year" id="year" class="form-select form-select-sm fw-semibold" style="width: 100px;">
                     @foreach($availableYears as $year)
                         <option value="{{ $year }}" {{ (string)$selectedYear === (string)$year ? 'selected' : '' }}>
@@ -164,10 +174,50 @@
                     @endforeach
                 </select>
 
-                @if(request('search') || request('class_name'))
+                @if(request('search') || request('class_name') || request('section_name'))
                     <a href="{{ route('teacher.classes') }}" class="btn btn-outline-secondary btn-sm rounded-2">إلغاء</a>
                 @endif
             </form>
+        </div>
+    </div>
+
+    <!-- بطاقات ملخصة لقوائم المدرسة (الصفوف / الشعب / المواد) -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="card card-custom p-3 h-100">
+                <h6 class="fw-bold text-dark mb-2"><i class="bi bi-collection text-primary me-1"></i> الصفوف ({{ count($availableClasses) }})</h6>
+                <div class="d-flex flex-wrap gap-1">
+                    @forelse($availableClasses as $class)
+                        <span class="badge rounded-pill" style="background-color: color-mix(in srgb, var(--primary-color) 12%, #ffffff); color: var(--primary-color); border: 1px solid color-mix(in srgb, var(--primary-color) 30%, transparent);">{{ $class }}</span>
+                    @empty
+                        <span class="text-muted small">لا توجد صفوف</span>
+                    @endforelse
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card card-custom p-3 h-100">
+                <h6 class="fw-bold text-dark mb-2"><i class="bi bi-diagram-3 text-primary me-1"></i> الشعب ({{ count($availableSections ?? []) }})</h6>
+                <div class="d-flex flex-wrap gap-1">
+                    @forelse($availableSections ?? [] as $section)
+                        <span class="badge rounded-pill" style="background-color: color-mix(in srgb, var(--primary-color) 12%, #ffffff); color: var(--primary-color); border: 1px solid color-mix(in srgb, var(--primary-color) 30%, transparent);">{{ $section }}</span>
+                    @empty
+                        <span class="text-muted small">لا توجد شعب</span>
+                    @endforelse
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card card-custom p-3 h-100">
+                <h6 class="fw-bold text-dark mb-2"><i class="bi bi-book text-primary me-1"></i> المواد ({{ count($availableSubjects ?? []) }})</h6>
+                <div class="d-flex flex-wrap gap-1">
+                    @forelse($availableSubjects ?? [] as $subject)
+                        <span class="badge rounded-pill" style="background-color: color-mix(in srgb, var(--primary-color) 12%, #ffffff); color: var(--primary-color); border: 1px solid color-mix(in srgb, var(--primary-color) 30%, transparent);">{{ $subject }}</span>
+                    @empty
+                        <span class="text-muted small">لا توجد مواد</span>
+                    @endforelse
+                </div>
+            </div>
         </div>
     </div>
 
@@ -179,6 +229,12 @@
                     <span class="fw-bold text-dark fs-6">
                         <i class="bi bi-building text-primary me-1"></i> {{ $className }}
                     </span>
+                    @if(isset($students->first()->section) && $students->first()->section)
+                        <span class="badge rounded-pill px-2 py-1 small fw-bold"
+                              style="background-color: color-mix(in srgb, var(--primary-color) 12%, #ffffff); color: var(--primary-color); border: 1px solid color-mix(in srgb, var(--primary-color) 30%, transparent);">
+                            الشعبة: {{ $students->first()->section }}
+                        </span>
+                    @endif
                     <span class="badge badge-students-count rounded-pill px-2.5 py-1 small">
                         {{ $students->count() }} طالب
                     </span>

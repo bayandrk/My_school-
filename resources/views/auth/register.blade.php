@@ -15,8 +15,8 @@
 
     <style>
         :root {
-            --accent-color: #6b21a8; /* اللون البنفسجي العصري */
-            --accent-hover: #581c87;
+            --accent-color: #1e3a8a; /* اللون الكحلي — مناسب للمدارس */
+            --accent-hover: #1e40af;
         }
 
         body {
@@ -33,7 +33,7 @@
         .register-card {
             border: none;
             border-radius: 20px;
-            box-shadow: 0 10px 30px rgba(107, 33, 168, 0.06);
+            box-shadow: 0 10px 30px rgba(30, 58, 138, 0.08);
             background: #ffffff;
             border: 1px solid #f1f5f9;
             overflow: hidden;

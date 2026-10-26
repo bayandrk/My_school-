@@ -3,9 +3,9 @@
 @section('title', 'سجل الطالب: ' . ($child->name ?? ''))
 
 @php
-    $schoolColor = $child->manager?->primary_color;
+    $schoolColor = $child->school?->color;
     if (!is_string($schoolColor) || !preg_match('/^#[0-9A-Fa-f]{6}$/', $schoolColor)) {
-        $schoolColor = '#0d7a5f';
+        $schoolColor = '#1e3a8a';
     }
 @endphp
 
@@ -21,9 +21,9 @@
             background-color: var(--primary-color) !important;
         }
 
-        body { 
-            font-family: 'Cairo', sans-serif; 
-            background-color: #f8fafc; 
+        body {
+            font-family: 'Cairo', sans-serif;
+            background-color: #f8fafc;
             color: #1e293b;
         }
 
@@ -158,8 +158,8 @@
                     <h4 class="fw-bold text-dark mb-1">{{ $child->name }}</h4>
                     <p class="text-muted small mb-0 fw-semibold">
                         الصف: <span style="color: var(--primary-color);">{{ $child->class ?? '-' }}</span> | العمر: <span style="color: var(--primary-color);">{{ $child->age ?? '-' }} سنوات</span>
-                        @if(!empty($child->manager?->school_name))
-                            | المدرسة: <span class="fw-bold" style="color: var(--primary-color);">{{ $child->manager->school_name }}</span>
+                        @if(!empty($child->school?->name))
+                            | المدرسة: <span class="fw-bold" style="color: var(--primary-color);">{{ $child->school->name }}</span>
                         @endif
                     </p>
                 </div>
@@ -220,42 +220,109 @@
         </div>
     </div>
 
+    @php
+        // ملاحظات الأم وردود المعلمة من جدول التغيرات اليومية
+        $myNotes = ($child->dailyChanges ?? collect())->where('source', 'parent_note')->sortByDesc('recorded_at');
+        $latestNoteModel = $myNotes->first();
+        $latestNote = $latestNoteModel?->note;
+        // آخر رد من المعلمة على أحدث ملاحظة
+        $latestReply = $latestNoteModel?->replies->sortByDesc('recorded_at')->first();
+    @endphp
+
     <!-- كرت ملاحظات ولي الأمر وردود المعلمة -->
     <div class="card card-custom mb-4 p-4">
         <div class="d-flex align-items-center justify-content-between mb-3 border-bottom pb-2">
             <h6 class="fw-bold text-dark mb-0 d-flex align-items-center gap-2">
-                <i class="bi bi-chat-left-quote-fill" style="color: var(--primary-color);"></i> ملاحظتك الخاصة وتوجيهاتك للمدرسة
+                <i class="bi bi-chat-left-quote-fill" style="color: var(--primary-color);"></i> ملاحظاتك وردود المعلمة
             </h6>
-            @if(!empty($child->parent_note))
+            @if($latestNoteModel)
                 <span class="text-muted" style="font-size: 0.75rem;">
-                    <i class="bi bi-clock me-1"></i> آخر تحديث: {{ $child->updated_at?->diffForHumans() }}
+                    <i class="bi bi-clock me-1"></i> آخر ملاحظة: {{ \Carbon\Carbon::parse($latestNoteModel->recorded_at)->diffForHumans() }}
                 </span>
             @endif
         </div>
 
-        @if(!empty($child->parent_note))
+        @if(!empty($latestNote))
             <div class="p-3 rounded-3 mb-3" style="background-color: #f8fafc; border: 1px solid #e2e8f0;">
-                <span class="small fw-bold d-block mb-1" style="color: var(--primary-color);">نص الملاحظة المرسلة:</span>
-                <p class="fw-semibold text-dark mb-0 small" style="white-space: pre-line;">
-                    {{ $child->parent_note }}
+                <span class="small fw-bold d-block mb-1" style="color: var(--primary-color);">
+                    <i class="bi bi-star-fill text-warning me-1"></i> أحدث ملاحظة مرسلة (الأحدث):
+                </span>
+                <p class="fw-bold text-dark mb-2 small" style="white-space: pre-line;">
+                    {{ $latestNote }}
                 </p>
+
+                <!-- زر لعرض سجل الملاحظات السابقة -->
+                @if($myNotes->count() > 1)
+                    <button type="button" class="btn btn-sm btn-link p-0 text-decoration-none fw-bold" style="font-size: 0.78rem; color: var(--primary-color);" data-bs-toggle="modal" data-bs-target="#parentHistoryModal">
+                        <i class="bi bi-clock-history me-1"></i> عرض سجل الملاحظات والردود ({{ $myNotes->count() }})
+                    </button>
+                @endif
             </div>
         @else
             <p class="text-muted small mb-3">لم تقم بإضافة ملاحظة خاصة لهذا الطالب بعد. يمكنك إرسال ملاحظة عبر زر "إرسال ملاحظة لأستاذ" أعلاه.</p>
         @endif
 
-        <!-- رد المعلمة إن وجد -->
-        @if(!empty($child->teacher_reply))
+        <!-- رد المعلمة إن وجد (من جدول التغيرات اليومية source = teacher_reply) -->
+        @if($latestReply)
             <div class="p-3 rounded-3 bg-white border-start border-4 border-success shadow-sm">
                 <h6 class="fw-bold text-success mb-2 d-flex align-items-center gap-2 small">
                     <i class="bi bi-reply-fill fs-5"></i> رد المعلمة:
                 </h6>
                 <p class="mb-0 text-dark small fw-semibold" style="white-space: pre-line;">
-                    {{ $child->teacher_reply }}
+                    {{ $latestReply->note }}
                 </p>
             </div>
         @endif
     </div>
+
+    <!-- Modal عرض سجل الملاحظات والردود للأهل -->
+    @if($myNotes->count() > 1)
+        <div class="modal fade" id="parentHistoryModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+                <div class="modal-content border-0 rounded-4 shadow">
+                    <div class="modal-header bg-light border-bottom">
+                        <h6 class="modal-title fw-bold text-dark">
+                            <i class="bi bi-journal-text me-1 text-primary"></i> سجل ملاحظاتك وردود المعلمة للطالب: {{ $child->name }}
+                        </h6>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body p-4">
+                        @php
+                            $allRecords = $myNotes->flatMap(function($note) {
+                                return collect([$note])->merge($note->replies);
+                            })->sortByDesc('recorded_at');
+                        @endphp
+                        @foreach($allRecords as $record)
+                            @if($record->source === 'parent_note')
+                                <div class="p-3 rounded-3 mb-2 bg-primary bg-opacity-10 border border-primary">
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <span class="badge bg-primary mb-1">
+                                            <i class="bi bi-person-fill me-1"></i> ملاحظتك
+                                        </span>
+                                        <span class="text-muted" style="font-size: 0.7rem;">{{ \Carbon\Carbon::parse($record->recorded_at)->format('Y-m-d H:i') }}</span>
+                                    </div>
+                                    <p class="mb-0 small fw-semibold text-dark" style="white-space: pre-line;">{{ $record->note }}</p>
+                                </div>
+                            @else
+                                <div class="p-3 rounded-3 mb-2 bg-success bg-opacity-10 border border-success border-opacity-25 me-4">
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <span class="badge bg-success mb-1">
+                                            <i class="bi bi-reply-fill me-1"></i> رد المعلمة
+                                        </span>
+                                        <span class="text-muted" style="font-size: 0.7rem;">{{ \Carbon\Carbon::parse($record->recorded_at)->format('Y-m-d H:i') }}</span>
+                                    </div>
+                                    <p class="mb-0 small fw-semibold text-dark" style="white-space: pre-line;">{{ $record->note }}</p>
+                                </div>
+                            @endif
+                        @endforeach
+                    </div>
+                    <div class="modal-footer border-0">
+                        <button type="button" class="btn btn-secondary btn-sm rounded-3 px-4" data-bs-dismiss="modal">إغلاق</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
 
     <!-- Modal إرسال ملاحظة للأستاذ -->
     <div class="modal fade" id="sendNoteModal" tabindex="-1" aria-hidden="true">
@@ -294,9 +361,9 @@
                         </div>
 
                         <div class="mb-2">
-    <label class="form-label small fw-bold text-muted mb-1">نص الملاحظة أو التنبيه:</label>
-    <textarea name="note" class="form-control form-control-sm rounded-3" rows="3" placeholder="اكتب الملاحظة الجديدة التي ترغب بإرسالها للأستاذ هنا..." required></textarea>
-</div>
+                            <label class="form-label small fw-bold text-muted mb-1">نص الملاحظة أو التنبيه:</label>
+                            <textarea name="note" class="form-control form-control-sm rounded-3" rows="3" placeholder="اكتب الملاحظة الجديدة التي ترغب بإرسالها للأستاذ هنا..." required></textarea>
+                        </div>
                     </div>
 
                     <div class="modal-footer border-top pt-2">
@@ -308,23 +375,24 @@
         </div>
     </div>
 
-    <!-- سجل الدرجات والملاحظات اليومية الشامل -->
-    <div class="card card-custom">
+    <!-- سجل الدرجات والملاحظات اليومية الشامل (سجلات اليوم) -->
+    <div class="card card-custom mb-4">
         <div class="p-3 bg-white border-bottom d-flex justify-content-between align-items-center">
             <h5 class="fw-bold text-dark mb-0 fs-6 d-flex align-items-center gap-2">
-                <i class="bi bi-journal-text fs-5" style="color: var(--primary-color);"></i> سجل الدرجات والملاحظات اليومية الشامل
+                <i class="bi bi-journal-text fs-5" style="color: var(--primary-color);"></i> سجل الدرجات والملاحظات اليومية (سجلات اليوم)
             </h5>
+            @if(isset($totalPreviousCount) && $totalPreviousCount > 0)
+                <button type="button" class="btn btn-sm btn-back-custom fw-bold" data-bs-toggle="modal" data-bs-target="#previousRecordsModal">
+                    <i class="bi bi-clock-history me-1"></i> السجلات السابقة ({{ $totalPreviousCount }})
+                </button>
+            @endif
         </div>
 
         <div class="card-body p-0">
-            @php
-                $recordsList = $child->dailyChanges ?? ($child->dailyVariables ?? []);
-            @endphp
-
-            @if(empty($recordsList) || (is_object($recordsList) && $recordsList->isEmpty()))
+            @if(empty($todayRecords) || $todayRecords->isEmpty())
                 <div class="text-center py-5 text-muted">
                     <i class="bi bi-inbox fs-1 d-block mb-2 text-secondary opacity-50"></i>
-                    <p class="fw-bold mb-0 small">لا توجد ملاحظات أو درجات مسجلة لهذا الطالب حتى الآن.</p>
+                    <p class="fw-bold mb-0 small">لا توجد ملاحظات أو درجات مسجلة من الآنسة لهذا اليوم حتى الآن.</p>
                 </div>
             @else
                 <div class="table-responsive">
@@ -339,7 +407,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach($recordsList as $index => $record)
+                            @foreach($todayRecords as $index => $record)
                                 <tr>
                                     <td class="fw-bold text-muted">{{ $index + 1 }}</td>
                                     <td>
@@ -367,6 +435,71 @@
         </div>
     </div>
 
+    <!-- نافذة (Modal) السجلات السابقة مع تحميل 10 سجلات وزر عرض الباقي -->
+    @if(isset($totalPreviousCount) && $totalPreviousCount > 0)
+        <div class="modal fade" id="previousRecordsModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
+                <div class="modal-content border-0 rounded-4 shadow">
+                    <div class="modal-header bg-light border-bottom">
+                        <h6 class="modal-title fw-bold text-dark">
+                            <i class="bi bi-journal-text me-1" style="color: var(--primary-color);"></i> السجلات السابقة للطالب: {{ $child->name }}
+                        </h6>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body p-4">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0 text-center align-middle small" id="previousRecordsTable">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th class="py-2">#</th>
+                                        <th class="py-2">المادة / الموضوع</th>
+                                        <th class="py-2">الدرجة / النتيجة</th>
+                                        <th class="py-2">الملاحظة</th>
+                                        <th class="py-2">تاريخ التسجيل</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="previousRecordsBody">
+                                    @foreach($initialPreviousRecords as $index => $record)
+                                        <tr class="prev-row-item">
+                                            <td class="fw-bold text-muted">{{ $index + 1 }}</td>
+                                            <td>
+                                                <span class="subject-badge">{{ $record->subject ?? ($record->topic ?? '-') }}</span>
+                                            </td>
+                                            <td>
+                                                @if(($record->score ?? $record->result) !== null)
+                                                    <span class="score-badge">{{ $record->score ?? $record->result }}</span>
+                                                @else
+                                                    <span class="text-muted">-</span>
+                                                @endif
+                                            </td>
+                                            <td class="text-secondary fw-semibold">{{ $record->note ?? ($record->notes ?? ($record->description ?? '-')) }}</td>
+                                            <td>
+                                                <span class="date-badge">
+                                                    {{ \Carbon\Carbon::parse($record->recorded_at ?? ($record->report_date ?? $record->created_at))->format('H:i | Y-m-d') }}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+
+                        @if($totalPreviousCount > 10)
+                            <div class="text-center mt-3" id="loadMoreContainer">
+                                <button type="button" class="btn btn-back-custom px-4 py-2 fw-bold" id="loadMoreBtn" onclick="loadAllPreviousRecords()">
+                                    <i class="bi bi-chevron-down me-1"></i> عرض الباقي ({{ $totalPreviousCount - 10 }} سجل إضافي)
+                                </button>
+                            </div>
+                        @endif
+                    </div>
+                    <div class="modal-footer border-0">
+                        <button type="button" class="btn btn-secondary btn-sm rounded-3 px-4" data-bs-dismiss="modal">إغلاق</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
+
 </div>
 
 @push('scripts')
@@ -376,6 +509,30 @@
         for(var i = 0; i < checkboxes.length; i++) {
             checkboxes[i].checked = source.checked;
         }
+    }
+
+    function loadAllPreviousRecords() {
+        const btn = document.getElementById('loadMoreBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> جاري التحميل...';
+
+        fetch('{{ route('parent.child.previous-records', $child->id) }}', {
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.html) {
+                document.getElementById('previousRecordsBody').innerHTML = data.html;
+                document.getElementById('loadMoreContainer').style.display = 'none';
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            btn.disabled = false;
+            btn.innerHTML = 'حدث خطأ، اعيد المحاولة';
+        });
     }
 </script>
 @endpush

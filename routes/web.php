@@ -8,11 +8,29 @@ use App\Http\Controllers\TeacherController;
 use App\Http\Controllers\ParentController;
 
 // ==========================================
+// 0. الصفحة الترحيبية (تعريف بالموقع)
+// ==========================================
+Route::get('', function () {
+    // المستخدم المسجل ما يحتاج الصفحة الترحيبية — بينحول لداشبوردو
+    if (auth()->check()) {
+        $user = auth()->user();
+        $dashboard = match ($user->role) {
+            'manager' => route('manager.dashboard'),
+            'teacher' => route('teacher.dashboard'),
+            default   => Route::has('parent.dashboard') ? route('parent.dashboard') : url('/'),
+        };
+        return redirect($dashboard);
+    }
+
+    return view('welcome');
+})->name('welcome');
+
+// ==========================================
 // 1. مسارات الضيوف (Guest Routes)
 // ==========================================
 Route::middleware('guest')->group(function () {
-    Route::get('', [AuthController::class, 'showRegisterForm'])->name('register');
-    Route::post('', [AuthController::class, 'register']);
+    Route::get('/register', [AuthController::class, 'showRegisterForm'])->name('register');
+    Route::post('/register', [AuthController::class, 'register']);
     Route::get('/login', [AuthController::class, 'showLoginForm'])->name('login');
     Route::post('/login', [AuthController::class, 'login']);
 });
@@ -27,7 +45,7 @@ Route::middleware('auth')->group(function () {
     // --------------------------------------
     // أ. مسارات الأدمن (Admin)
     // --------------------------------------
-    Route::prefix('admin')->name('admin.')->group(function () {
+    Route::prefix('admin')->name('admin.')->middleware('admin')->group(function () {
         Route::get('/dashboard', [AdminController::class, 'dashboard'])->name('dashboard');
         Route::get('/managers/deactivated', [AdminController::class, 'deactivatedManagers'])->name('managers.deactivated');
         Route::patch('/managers/{manager}/approve', [AdminController::class, 'approveManager'])->name('managers.approve');
@@ -35,6 +53,7 @@ Route::middleware('auth')->group(function () {
         Route::patch('/managers/{manager}/deactivate', [AdminController::class, 'deactivateManager'])->name('managers.deactivate');
         Route::patch('/managers/{manager}/reactivate', [AdminController::class, 'reactivateManager'])->name('managers.reactivate');
         Route::delete('/managers/{manager}', [AdminController::class, 'destroyManager'])->name('managers.destroy');
+        Route::get('/tasks', [AdminController::class, 'tasks'])->name('tasks');
     });
 
     // --------------------------------------
@@ -42,14 +61,20 @@ Route::middleware('auth')->group(function () {
     // --------------------------------------
     Route::prefix('manager')->name('manager.')->group(function () {
         Route::get('/dashboard', [ManagerController::class, 'dashboard'])->name('dashboard');
+        Route::get('/tasks', function () {
+            return view('manager.tasks');
+        })->name('tasks');
         Route::patch('/teachers/{teacher}/deactivate', [ManagerController::class, 'deactivateTeacher'])->name('teachers.deactivate');
         Route::patch('/teachers/{teacher}/reactivate', [ManagerController::class, 'reactivateTeacher'])->name('teachers.reactivate');
         Route::delete('/teachers/{teacher}/reject', [ManagerController::class, 'rejectTeacher'])->name('teachers.reject');
         Route::get('/profile', [ManagerController::class, 'profile'])->name('profile');
         Route::put('/profile', [ManagerController::class, 'updateProfile'])->name('profile.update');
         Route::put('/profile/branding', [ManagerController::class, 'updateBranding'])->name('update-branding');
+        Route::post('/settings/add', [ManagerController::class, 'addSchoolSetting'])->name('settings.add');
+        Route::post('/settings/remove', [ManagerController::class, 'removeSchoolSetting'])->name('settings.remove');
         Route::delete('/profile', [ManagerController::class, 'destroyProfile'])->name('profile.destroy');
         Route::get('/classes', [ManagerController::class, 'classes'])->name('classes');
+        Route::get('/students/{student}/records', [ManagerController::class, 'studentRecords'])->name('student.records');
         Route::get('/teachers', [ManagerController::class, 'teachers'])->name('teachers');
         Route::get('/children/{child}/edit', [ManagerController::class, 'editChild'])->name('children.edit');
         Route::put('/children/{child}', [ManagerController::class, 'updateChild'])->name('children.update');
@@ -57,11 +82,14 @@ Route::middleware('auth')->group(function () {
         Route::delete('/teachers/{teacher}', [ManagerController::class, 'destroyTeacher'])->name('teachers.destroy');
         Route::get('/class-scores', [ManagerController::class, 'classScores'])->name('class.scores');
         Route::get('/class-notes', [ManagerController::class, 'classNotes'])->name('class.notes');
+        Route::get('/class-parent-notes', [ManagerController::class, 'classParentNotes'])->name('class.parent.notes');
         Route::get('/teachers/deactivated', [ManagerController::class, 'deactivatedTeachers'])->name('teachers.deactivated');
         Route::patch('/children/{child}/archive', [ManagerController::class, 'archiveChild'])->name('children.archive');
         Route::patch('/children/{child}/restore', [ManagerController::class, 'restoreChild'])->name('children.restore');
         Route::get('/children/archived', [ManagerController::class, 'archivedChildren'])->name('children.archived');
         Route::get('/assignments', [ManagerController::class, 'assignmentsIndex'])->name('assignments');
+        Route::patch('/join-requests/{joinRequest}/approve', [ManagerController::class, 'approveJoinRequest'])->name('join-requests.approve');
+        Route::patch('/join-requests/{joinRequest}/reject', [ManagerController::class, 'rejectJoinRequest'])->name('join-requests.reject');
         Route::post('/assign-teacher-class', [ManagerController::class, 'assignTeacherToClass'])->name('assign-teacher-class');
         Route::post('/unassign-teacher-class', [ManagerController::class, 'unassignTeacherClass'])->name('unassign-teacher-class');
         Route::patch('/teachers/{teacher}/approve', [ManagerController::class, 'approveTeacher'])->name('teachers.approve');
@@ -100,7 +128,7 @@ Route::prefix('teacher')->name('teacher.')->group(function () {
     // 🔔 مسار قراءة إشعارات المعلم وقراءتها عبر الكنترولر
     Route::get('/notification/{id}/read', [TeacherController::class, 'readNotification'])->name('notification.read');
     Route::get('/parent-notes', [TeacherController::class, 'parentNotes'])->name('parent-notes');
-    Route::post('/parent-notes/{child}/reply', [TeacherController::class, 'replyToParentNote'])->name('parent-notes.reply');
+    Route::post('/parent-notes/{note}/reply', [TeacherController::class, 'replyToParentNote'])->name('parent-notes.reply');
 }); 
     
     // --------------------------------------
@@ -108,10 +136,14 @@ Route::prefix('teacher')->name('teacher.')->group(function () {
     // --------------------------------------
     Route::prefix('parent')->name('parent.')->group(function () {
         Route::get('/dashboard', [ParentController::class, 'dashboard'])->name('dashboard');
+        Route::get('/schools/join', [ParentController::class, 'joinSchoolPage'])->name('schools.join.page');
+        Route::post('/schools/join', [ParentController::class, 'joinSchool'])->name('schools.join');
+        Route::post('/schools/leave', [ParentController::class, 'leaveSchool'])->name('schools.leave');
         Route::get('/profile', [ParentController::class, 'profile'])->name('profile');
         Route::put('/profile', [ParentController::class, 'updateProfile'])->name('profile.update');
         Route::delete('/profile', [ParentController::class, 'destroyProfile'])->name('profile.destroy');
         Route::get('/children/{child}', [ParentController::class, 'showChild'])->name('child.show');
+        Route::get('/children/{child}/previous-records', [ParentController::class, 'getPreviousRecords'])->name('child.previous-records');
         Route::put('/children/{child}/parent-note', [ParentController::class, 'updateChildNote'])->name('update-child-note');
         Route::post('/children/{child}/send-teacher-note', [ParentController::class, 'sendTeacherNote'])->name('send-teacher-note');
         Route::get('/parent-notes', [TeacherController::class, 'parentNotes'])->name('parent-notes');

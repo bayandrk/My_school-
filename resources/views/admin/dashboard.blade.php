@@ -1,122 +1,80 @@
-<!DOCTYPE html>
-<html lang="ar" dir="rtl">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>لوحة تحكم الأدمن</title>
-    
-    <!-- Bootstrap 5 RTL CSS -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css">
-    <!-- Bootstrap Icons -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
-    <!-- الخط العربي (Cairo) -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+@extends('layouts.app')
 
-    <style>
-        body { 
-            font-family: 'Cairo', sans-serif; 
-            background-color: #f8fafc; 
-            color: #1e293b; 
-        }
+@section('title', 'لوحة تحكم الأدمن')
+@endsection
 
-        .navbar-admin { 
-            background-color: #0f172a; 
-        }
+@push('styles')
+<style>
+    body { 
+        font-family: 'Cairo', sans-serif; 
+        background-color: #f8fafc; 
+        color: #1e293b; 
+    }
 
-        .admin-card {
-            border: none;
-            border-radius: 16px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.03);
-            background: #ffffff;
-            border: 1px solid #f1f5f9;
-            overflow: hidden;
-        }
+    .admin-card {
+        border: none;
+        border-radius: 16px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.03);
+        background: #ffffff;
+        border: 1px solid #f1f5f9;
+        overflow: hidden;
+    }
 
-        .card-header-pending {
-            background-color: #fffbeb;
-            color: #b45309;
-            border-bottom: 1px solid #fef3c7;
-        }
+    .card-header-pending {
+        background-color: #fffbeb;
+        color: #b45309;
+        border-bottom: 1px solid #fef3c7;
+    }
 
-        .card-header-active {
-            background-color: #f0fdf4;
-            color: #15803d;
-            border-bottom: 1px solid #dcfce7;
-        }
+    .card-header-active {
+        background-color: #f0fdf4;
+        color: #15803d;
+        border-bottom: 1px solid #dcfce7;
+    }
 
-        .btn-action-sm {
-            border-radius: 8px;
-            font-weight: 600;
-            font-size: 0.8rem;
-            padding: 0.35rem 0.75rem;
-        }
+    .btn-action-sm {
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 0.8rem;
+        padding: 0.35rem 0.75rem;
+    }
 
-        .badge-count {
-            border-radius: 8px;
-            font-weight: 700;
-            font-size: 0.8rem;
-            padding: 0.35rem 0.65rem;
-        }
+    .badge-count {
+        border-radius: 8px;
+        font-weight: 700;
+        font-size: 0.8rem;
+        padding: 0.35rem 0.65rem;
+    }
 
-        .status-badge-active {
-            background-color: #dcfce7;
-            color: #166534;
-            border: 1px solid #bbf7d0;
-            font-weight: 700;
-            padding: 4px 10px;
-            border-radius: 8px;
-            font-size: 0.78rem;
-        }
+    .status-badge-active {
+        background-color: #dcfce7;
+        color: #166534;
+        border: 1px solid #bbf7d0;
+        font-weight: 700;
+        padding: 4px 10px;
+        border-radius: 8px;
+        font-size: 0.78rem;
+    }
 
-        .school-badge {
-            background-color: #e0f2fe;
-            color: #0369a1;
-            border: 1px solid #bae6fd;
-            font-weight: 700;
-            padding: 4px 12px;
-            border-radius: 8px;
-            font-size: 0.8rem;
-            display: inline-block;
-        }
+    .school-badge {
+        background-color: #e0f2fe;
+        color: #0369a1;
+        border: 1px solid #bae6fd;
+        font-weight: 700;
+        padding: 4px 12px;
+        border-radius: 8px;
+        font-size: 0.8rem;
+        display: inline-block;
+    }
 
-        .table > :not(caption) > * > * {
-            padding: 0.85rem 0.75rem;
-        }
-    </style>
-</head>
-<body>
+    .table > :not(caption) > * > * {
+        padding: 0.85rem 0.75rem;
+    }
+</style>
+@endpush
 
-    <!-- النافبار العلوي -->
-    <nav class="navbar navbar-expand-lg navbar-dark navbar-admin py-3 shadow-sm mb-4">
-        <div class="container">
-            <a class="navbar-brand fw-bold fs-5 d-flex align-items-center gap-2" href="#">
-                <i class="bi bi-shield-lock-fill text-warning"></i> لوحة تحكم الأدمن
-            </a>
-
-            <div class="d-flex align-items-center gap-3">
-                <a href="{{ route('admin.managers.deactivated') }}" class="btn btn-outline-warning btn-sm fw-bold rounded-2 px-3 position-relative">
-                    <i class="bi bi-person-x-fill me-1"></i> المدراء غير المفعلين
-                    @if($deactivatedCount > 0)
-                        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
-                            {{ $deactivatedCount }}
-                        </span>
-                    @endif
-                </a>
-
-                <span class="text-white-50 small d-none d-md-inline">مرحباً، <strong class="text-white">{{ auth()->user()->name }}</strong></span>
-
-                <form action="{{ route('logout') }}" method="POST" class="d-inline">
-                    @csrf
-                    <button type="submit" class="btn btn-outline-danger btn-sm rounded-2 px-3 fw-bold">تسجيل الخروج</button>
-                </form>
-            </div>
-        </div>
-    </nav>
-
+@section('content')
     <div class="container pb-5">
-
         @if(session('success'))
             <div class="alert alert-success alert-dismissible fade show fw-bold rounded-3 mb-4 py-2.5 shadow-sm" role="alert">
                 <i class="bi bi-check-circle-fill me-2"></i> {{ session('success') }}
@@ -281,9 +239,6 @@
             </div>
         </div>
 
-    </div>
 
-    <!-- Bootstrap 5 JS -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
+    </div>
+@endsection

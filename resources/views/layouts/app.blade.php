@@ -12,45 +12,28 @@
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
 
     @php
-        // جلب لون المدرسة والشعار ديناميكياً بحسب المستخدم المسجل ودوره بكل أمان
+        // جلب لون المدرسة والشعار واسمها من جدول schools (المصدر الوحيد لهذه الإعدادات)
         $user = auth()->user();
         $schoolColor = '#6b21a8';
         $schoolLogo  = null;
         $schoolName  = 'النظام المدرسي';
 
-        if ($user) {
-            if ($user->role === 'manager') {
-                $schoolColor = $user->primary_color ?? '#0d7a5f';
-                $schoolLogo  = $user->logo;
-                $schoolName  = !empty($user->school_name) ? $user->school_name : 'سعدالله ونوس';
-            } elseif ($user->role === 'teacher') {
-                $manager = \App\Models\User::where('role', 'manager')
-                    ->where('school_name', $user->school_name ?? '')
-                    ->first();
-                $schoolColor = $manager->primary_color ?? '#0d7a5f';
-                $schoolLogo  = $manager->logo ?? null;
-                $schoolName  = !empty($user->school_name) ? $user->school_name : ($manager->school_name ?? 'سعدالله ونوس');
-            } elseif ($user->role === 'parent') {
-                $activeChild = null;
-                if (session()->has('active_child_id')) {
-                    $activeChild = \App\Models\Child::find(session('active_child_id'));
-                }
-                if (!$activeChild) {
-                    $activeChild = \App\Models\Child::where('parent_id', $user->id)->first();
-                }
-                if ($activeChild && !empty($activeChild->school_name)) {
-                    $manager = \App\Models\User::where('role', 'manager')
-                        ->where('school_name', $activeChild->school_name)
-                        ->first();
-                    if ($manager) {
-                        $schoolColor = $manager->primary_color ?? '#6b21a8';
-                        $schoolLogo  = $manager->logo ?? null;
-                        $schoolName  = $manager->school_name;
-                    } else {
-                        $schoolName = $activeChild->school_name;
-                    }
-                }
+        if ($user && $user->role !== 'admin') {
+            $school = $user->school;
+
+            if (!$school) {
+                $schoolId = \App\Models\Child::where('parent_id', $user->id)->value('school_id');
+                $school = $schoolId ? \App\Models\School::find($schoolId) : null;
             }
+
+            if ($school) {
+                $schoolColor = $school->color ?? '#1e3a8a';
+                $schoolLogo  = $school->logo;
+                $schoolName  = $school->name;
+            }
+        } elseif ($user && $user->role === 'admin') {
+            $schoolName = 'لوحة تحكم الأدمن';
+            $schoolColor = '#0f172a';
         }
 
         // دالة لحساب درجة سطوع اللون واختيار لون النص التلقائي (أسود أو أبيض)
@@ -245,7 +228,9 @@
             <div class="d-flex align-items-center gap-2">
                 <!-- عنوان اللوحة -->
                 <a class="app-brand-title d-flex align-items-center gap-2 m-0" href="#">
-                    @if(auth()->user()->role === 'manager')
+                    @if(auth()->user()->role === 'admin')
+                        <i class="bi bi-shield-lock-fill text-warning"></i> لوحة تحكم الأدمن
+                    @elseif(auth()->user()->role === 'manager')
                         لوحة إدارة المدرسة
                     @elseif(auth()->user()->role === 'teacher')
                         <i class="bi bi-person-badge-fill"></i> لوحة تحكم المعلم
@@ -254,15 +239,17 @@
                     @endif
                 </a>
 
-                <!-- شارة اسم المدرسة والشعار داخل النافبار -->
-                <div class="school-navbar-brand ms-2">
-                    @if(!empty($schoolLogo))
-                        <img src="{{ asset('storage/' . $schoolLogo) }}" alt="لوغو" class="school-navbar-logo">
-                    @else
-                        <i class="bi bi-building fs-6"></i>
-                    @endif
-                    <span>{{ $schoolName }}</span>
-                </div>
+                <!-- شارة اسم المدرسة والشعار داخل النافبار (لغير الأدمن) -->
+                @if(auth()->user()->role !== 'admin')
+                    <div class="school-navbar-brand ms-2">
+                        @if(!empty($schoolLogo))
+                            <img src="{{ asset('storage/' . $schoolLogo) }}" alt="لوغو" class="school-navbar-logo">
+                        @else
+                            <i class="bi bi-building fs-6"></i>
+                        @endif
+                        <span>{{ $schoolName }}</span>
+                    </div>
+                @endif
             </div>
 
             <button class="navbar-toggler border-0 shadow-none" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavbar">
@@ -270,11 +257,19 @@
             </button>
 
             <div class="collapse navbar-collapse" id="mainNavbar">
-                <!-- روابط النافبار بنمط وتنسيق موحد -->
+                <!-- روابط النافبار حسب دور المستخدم -->
                 <ul class="navbar-nav me-auto mb-2 mb-lg-0 fw-semibold gap-1 ms-lg-3">
-                    @if(auth()->user()->role === 'manager')
+                    @if(auth()->user()->role === 'admin')
                         <li class="nav-item">
-                            <a class="nav-link {{ request()->routeIs('manager.dashboard') ? 'active' : '' }}" href="{{ route('manager.dashboard') }}">المهام والطلبات</a>
+                            <a class="nav-link {{ request()->routeIs('admin.dashboard') ? 'active' : '' }}" href="{{ route('admin.dashboard') }}">الرئيسية</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {{ request()->routeIs('admin.tasks') ? 'active' : '' }}" href="{{ route('admin.tasks') }}">المهام</a>
+                        </li>
+                    @elseif(auth()->user()->role === 'manager')
+                        <!-- تم حذف رابط المهام هنا بناءً على طلبك -->
+                        <li class="nav-item">
+                            <a class="nav-link {{ request()->routeIs('manager.dashboard') ? 'active' : '' }}" href="{{ route('manager.dashboard') }}">الطلبات</a>
                         </li>
                         <li class="nav-item">
                             <a class="nav-link {{ request()->routeIs('manager.classes') ? 'active' : '' }}" href="{{ route('manager.classes') }}">دليل الصفوف</a>
@@ -295,7 +290,6 @@
                         <li class="nav-item">
                             <a class="nav-link {{ request()->routeIs('teacher.daily-changes') ? 'active' : '' }}" href="{{ route('teacher.daily-changes') }}">السجلات المدخلة</a>
                         </li>
-                        <!-- صفحة ملاحظات الأهل الجديدة للآنسة -->
                         <li class="nav-item">
                             <a class="nav-link {{ request()->routeIs('teacher.parent-notes') ? 'active' : '' }}" href="{{ route('teacher.parent-notes') }}">ملاحظات الأهل</a>
                         </li>
@@ -306,7 +300,112 @@
 
                 <div class="d-flex align-items-center gap-2">
                     
-                    <!-- 🔔 نظام إشعارات المعلم داخل النافبار -->
+                    <!-- 🔔 نظام إشعارات الأدمن (أيقونة جرس فقط ثابتة لا تتغير بين الرئيسية والمهام) -->
+                    @if(auth()->check() && auth()->user()->role === 'admin')
+                        @php
+                            $pendingManagersList = \App\Models\User::where('role', 'manager')->where('status', 'pending')->latest()->take(5)->get();
+                            $pendingCount = \App\Models\User::where('role', 'manager')->where('status', 'pending')->count();
+                        @endphp
+                        <div class="dropdown me-1">
+                            <button class="btn btn-nav-profile position-relative px-2.5 py-1.5" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="الطلبات المعلقة">
+                                <i class="bi bi-bell-fill fs-6"></i>
+                                @if($pendingCount > 0)
+                                    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size: 0.6rem;">
+                                        {{ $pendingCount }}
+                                    </span>
+                                @endif
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0 rounded-3 mt-2 p-2" style="width: 310px; max-height: 400px; overflow-y: auto;">
+                                <li class="dropdown-header fw-bold text-dark border-bottom pb-2 d-flex justify-content-between align-items-center">
+                                    <span><i class="bi bi-person-plus text-primary me-1"></i> طلبات انضمام المدراء</span>
+                                    <span class="badge bg-primary bg-opacity-10 text-primary small">{{ $pendingCount }} طلب</span>
+                                </li>
+                                
+                                @forelse($pendingManagersList as $managerReq)
+                                    <li>
+                                        <a class="dropdown-item p-2 rounded-2 mt-1 border-bottom bg-light text-wrap" href="{{ route('admin.tasks') }}">
+                                            <div class="d-flex align-items-center gap-2">
+                                                <i class="bi bi-hourglass-split text-warning fs-5"></i>
+                                                <div>
+                                                    <div class="small fw-bold text-dark">طلب انضمام مدير جديد</div>
+                                                    <div class="text-muted" style="font-size: 0.75rem;">المدير: {{ $managerReq->name }}</div>
+                                                    <small class="text-secondary opacity-75" style="font-size: 0.68rem;">{{ $managerReq->created_at->diffForHumans() }}</small>
+                                                </div>
+                                            </div>
+                                        </a>
+                                    </li>
+                                @empty
+                                    <li class="text-center text-muted py-3 small">لا توجد طلبات معلقة</li>
+                                @endforelse
+
+                                @if($pendingCount > 0)
+                                    <li class="text-center pt-2">
+                                        <a href="{{ route('admin.tasks') }}" class="btn btn-sm btn-primary w-100 fw-bold py-1" style="font-size: 0.8rem;">الانتقال لصفحة المهام</a>
+                                    </li>
+                                @endif
+                            </ul>
+                        </div>
+                    @endif
+
+                    <!-- زر المدراء غير المفعلين للأدمن -->
+                    @if(auth()->check() && auth()->user()->role === 'admin')
+                        @php
+                            $deactCount = \App\Models\User::where('role', 'manager')->where('status', 'deactivated')->count();
+                        @endphp
+                        <a href="{{ route('admin.managers.deactivated') }}" class="btn btn-outline-warning btn-sm fw-bold rounded-2 px-2.5 position-relative" title="المدراء غير المفعلين">
+                            <i class="bi bi-person-x-fill"></i>
+                            @if($deactCount > 0)
+                                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size: 0.6rem;">
+                                    {{ $deactCount }}
+                                </span>
+                            @endif
+                        </a>
+                    @endif
+
+                    <!-- إشعارات المدير لغير الأدمن -->
+                    @if(auth()->check() && auth()->user()->role === 'manager')
+                        @php
+                            $unreadManagerNotifications = auth()->user()->unreadNotifications;
+                        @endphp
+                        <div class="dropdown me-1">
+                            <button class="btn btn-nav-profile position-relative" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="إشعارات المدير">
+                                <i class="bi bi-bell-fill fs-6"></i>
+                                @if($unreadManagerNotifications->count() > 0)
+                                    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size: 0.6rem;">
+                                        {{ $unreadManagerNotifications->count() }}
+                                    </span>
+                                @endif
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0 rounded-3 mt-2 p-2" style="width: 320px; max-height: 400px; overflow-y: auto;">
+                                <li class="dropdown-header fw-bold text-dark border-bottom pb-2 d-flex justify-content-between align-items-center">
+                                    <span><i class="bi bi-bell text-primary me-1"></i> إشعارات المدير</span>
+                                    <span class="badge bg-primary bg-opacity-10 text-primary small">{{ $unreadManagerNotifications->count() }} غير مقروء</span>
+                                </li>
+                                @forelse(auth()->user()->notifications->take(10) as $notification)
+                                    <li>
+                                        <a class="dropdown-item p-2 rounded-2 mt-1 border-bottom text-wrap {{ $notification->read_at ? 'bg-white opacity-75' : 'bg-light fw-bold' }}" href="{{ $notification->data['url'] ?? '#' }}" onclick="event.preventDefault(); document.getElementById('mark-read-{{ $notification->id }}').submit();">
+                                            <div class="d-flex align-items-center gap-2">
+                                                <i class="bi {{ $notification->data['icon'] ?? 'bi-person-plus-fill' }} text-primary fs-5"></i>
+                                                <div>
+                                                    <div class="small fw-bold text-dark">{{ $notification->data['title'] ?? 'إشعار جديد' }}</div>
+                                                    <div class="text-muted" style="font-size: 0.75rem;">{{ $notification->data['message'] ?? '' }}</div>
+                                                    <small class="text-secondary opacity-75" style="font-size: 0.68rem;">{{ $notification->created_at->diffForHumans() }}</small>
+                                                </div>
+                                            </div>
+                                        </a>
+                                        <form id="mark-read-{{ $notification->id }}" action="{{ route('parent.notification.read', $notification->id) }}" method="GET" class="d-none"></form>
+                                    </li>
+                                @empty
+                                    <li class="text-center text-muted py-4 small">
+                                        <i class="bi bi-bell-slash d-block fs-3 mb-1 opacity-50"></i>
+                                        لا توجد إشعارات حالياً
+                                    </li>
+                                @endforelse
+                            </ul>
+                        </div>
+                    @endif
+
+                    <!-- إشعارات المعلم لغير الأدمن -->
                     @if(auth()->check() && auth()->user()->role === 'teacher')
                         @php
                             $unreadTeacherNotifications = auth()->user()->unreadNotifications;
@@ -325,7 +424,6 @@
                                     <span><i class="bi bi-bell text-primary me-1"></i> إشعارات المعلم</span>
                                     <span class="badge bg-primary bg-opacity-10 text-primary small">{{ $unreadTeacherNotifications->count() }} غير مقروء</span>
                                 </li>
-                                
                                 @forelse(auth()->user()->notifications->take(10) as $notification)
                                     <li>
                                         <a class="dropdown-item p-2 rounded-2 mt-1 border-bottom text-wrap {{ $notification->read_at ? 'bg-white opacity-75' : 'bg-light fw-bold' }}" href="{{ route('teacher.notification.read', $notification->id) }}">
@@ -349,7 +447,7 @@
                         </div>
                     @endif
 
-                    <!-- 🔔 نظام إشعارات ولي الأمر داخل النافبار -->
+                    <!-- إشعارات ولي الأمر لغير الأدمن -->
                     @if(auth()->check() && auth()->user()->role === 'parent')
                         @php
                             $unreadNotifications = auth()->user()->unreadNotifications;
@@ -368,7 +466,6 @@
                                     <span><i class="bi bi-bell text-primary me-1"></i> الإشعارات</span>
                                     <span class="badge bg-primary bg-opacity-10 text-primary small">{{ $unreadNotifications->count() }} غير مقروء</span>
                                 </li>
-                                
                                 @forelse(auth()->user()->notifications->take(10) as $notification)
                                     <li>
                                         <a class="dropdown-item p-2 rounded-2 mt-1 border-bottom text-wrap {{ $notification->read_at ? 'bg-white opacity-75' : 'bg-light fw-bold' }}" href="{{ route('parent.notification.read', $notification->id) }}">
@@ -392,9 +489,12 @@
                         </div>
                     @endif
 
-                    <a href="{{ auth()->user()->role === 'manager' ? route('manager.profile') : (auth()->user()->role === 'teacher' ? route('teacher.profile') : route('parent.profile')) }}" class="btn btn-nav-profile">
-                        <i class="bi bi-person-circle me-1"></i> الملف الشخصي
-                    </a>
+                    @if(auth()->user()->role !== 'admin')
+                        <a href="{{ auth()->user()->role === 'manager' ? route('manager.profile') : (auth()->user()->role === 'teacher' ? route('teacher.profile') : route('parent.profile')) }}" class="btn btn-nav-profile">
+                            <i class="bi bi-person-circle me-1"></i> الملف الشخصي
+                        </a>
+                    @endif
+
                     <form action="{{ route('logout') }}" method="POST" class="d-inline">
                         @csrf
                         <button type="submit" class="btn btn-nav-logout">

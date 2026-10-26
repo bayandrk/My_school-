@@ -13,7 +13,7 @@
 
     <style>
         :root {
-            --primary-color: {{ $manager->primary_color ?? '#0d7a5f' }};
+            --primary-color: {{ $school?->color ?? '#1e3a8a' }};
         }
 
         body {
@@ -198,12 +198,12 @@
 
                 <!-- شارة اسم المدرسة والشعار داخل النافبار -->
                 <div class="school-navbar-brand ms-2">
-                    @if($manager->logo)
-                        <img src="{{ asset('storage/' . $manager->logo) }}" alt="لوغو" class="school-navbar-logo">
+                    @if($school?->logo)
+                        <img src="{{ asset('storage/' . $school->logo) }}" alt="لوغو" class="school-navbar-logo">
                     @else
                         <i class="bi bi-building fs-6"></i>
                     @endif
-                    <span>{{ $manager->school_name ?? 'سعدالله ونوس' }}</span>
+                    <span>{{ $school?->name ?? 'سعدالله ونوس' }}</span>
                 </div>
             </div>
 
@@ -278,8 +278,8 @@
                     <div class="row align-items-center g-4">
                         <!-- عرض الشعار الحالي -->
                         <div class="col-md-3 text-center border-end-md">
-                            @if($manager->logo)
-                                <img src="{{ asset('storage/' . $manager->logo) }}" alt="شعار المدرسة" class="rounded-3 shadow-sm border mb-2" style="width: 80px; height: 80px; object-fit: cover;">
+                            @if($school?->logo)
+                                <img src="{{ asset('storage/' . $school->logo) }}" alt="شعار المدرسة" class="rounded-3 shadow-sm border mb-2" style="width: 80px; height: 80px; object-fit: cover;">
                             @else
                                 <div class="bg-light rounded-3 d-flex align-items-center justify-content-center mx-auto mb-2 border text-muted" style="width: 80px; height: 80px;">
                                     <i class="bi bi-building fs-2 text-secondary"></i>
@@ -299,7 +299,7 @@
                         <div class="col-md-4">
                             <label class="form-label">لون الهوية المفضل للمدرسة:</label>
                             <div class="d-flex align-items-center gap-2">
-                                <input type="color" name="primary_color" class="form-control form-control-color p-1" value="{{ $manager->primary_color ?? '#0d7a5f' }}" title="اختر اللون" style="width: 50px; height: 38px; cursor: pointer;">
+                                <input type="color" name="primary_color" class="form-control form-control-color p-1" value="{{ $school?->color ?? '#1e3a8a' }}" title="اختر اللون" style="width: 50px; height: 38px; cursor: pointer;">
                                 <span class="text-secondary small fw-semibold">انقر لاختيار اللون</span>
                             </div>
                         </div>

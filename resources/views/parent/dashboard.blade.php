@@ -254,6 +254,38 @@
     <p>يمكنكِ متابعة أطفالكِ والاطلاع على تقاريرهم اليومية.</p>
 </div>
 
+<!-- كرت اختيار/إدارة مدارس ولي الأمر -->
+<div class="card card-custom mb-4 p-4">
+    <div class="d-flex align-items-center mb-3">
+        <i class="bi bi-mortarboard-fill fs-5 me-2" style="color: var(--primary-color, #1e3a8a);"></i>
+        <h5 class="fw-bold mb-0">مدارس أطفالي</h5>
+    </div>
+
+    @if($mySchools->isEmpty())
+        <p class="text-muted small mb-0">لم تنضمي لأي مدرسة بعد.</p>
+    @else
+        <div class="d-flex flex-wrap gap-2 mb-3">
+            @foreach($mySchools as $school)
+                <div class="d-flex align-items-center gap-2 border rounded-3 px-3 py-2 bg-light">
+                    @if($school->logo)
+                        <img src="{{ asset('storage/' . $school->logo) }}" alt="شعار المدرسة" style="width: 32px; height: 32px; object-fit: cover; border-radius: 8px;">
+                    @else
+                        <i class="bi bi-building fs-5 text-secondary"></i>
+                    @endif
+                    <span class="fw-semibold">{{ $school->name }}</span>
+                </div>
+            @endforeach
+        </div>
+    @endif
+
+    <!-- زر الانتقال لصفحة الانضمام لمدرسة -->
+    <div>
+        <a href="{{ route('parent.schools.join.page') }}" class="btn btn-primary d-inline-flex align-items-center gap-2">
+            <i class="bi bi-plus-lg"></i> الانضمام لمدرسة ومغادرة المدارس
+        </a>
+    </div>
+</div>
+
 <h3 class="children-title">
     <i class="bi bi-people"></i> أطفالي
 </h3>
@@ -261,21 +293,21 @@
 <div class="children-grid">
     @forelse($children as $child)
         @php
-            $schoolColor = $child->manager?->primary_color;
+            $schoolColor = $child->school?->color;
             if (!is_string($schoolColor) || !preg_match('/^#[0-9A-Fa-f]{6}$/', $schoolColor)) {
                 $schoolColor = '#2563eb';
             }
         @endphp
         <div class="child-card" style="--school-color: {{ $schoolColor }};">
-            
+
             <div class="school-card-header">
                 <div class="school-brand mb-0">
-                    @if($child->manager?->logo)
-                        <img src="{{ asset('storage/' . $child->manager->logo) }}" alt="شعار المدرسة">
+                    @if($child->school?->logo)
+                        <img src="{{ asset('storage/' . $child->school->logo) }}" alt="شعار المدرسة">
                     @else
                         <span class="school-brand-icon"><i class="bi bi-mortarboard"></i></span>
                     @endif
-                    <span>{{ $child->manager?->school_name ?? ($child->school_name ?? 'المدرسة غير محددة') }}</span>
+                    <span>{{ $child->school?->name ?? 'المدرسة غير محددة' }}</span>
                 </div>
                 <span class="school-caption">بيانات المدرسة</span>
             </div>
