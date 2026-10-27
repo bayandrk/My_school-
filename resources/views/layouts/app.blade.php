@@ -257,7 +257,7 @@
             </button>
 
             <div class="collapse navbar-collapse" id="mainNavbar">
-                <!-- روابط النافبار حسب دور المستخدم -->
+                <!-- روابط التنقل حسب دور المستخدم -->
                 <ul class="navbar-nav me-auto mb-2 mb-lg-0 fw-semibold gap-1 ms-lg-3">
                     @if(auth()->user()->role === 'admin')
                         <li class="nav-item">
@@ -267,9 +267,11 @@
                             <a class="nav-link {{ request()->routeIs('admin.tasks') ? 'active' : '' }}" href="{{ route('admin.tasks') }}">المهام</a>
                         </li>
                     @elseif(auth()->user()->role === 'manager')
-                        <!-- تم حذف رابط المهام هنا بناءً على طلبك -->
                         <li class="nav-item">
-                            <a class="nav-link {{ request()->routeIs('manager.dashboard') ? 'active' : '' }}" href="{{ route('manager.dashboard') }}">الطلبات</a>
+                            <a class="nav-link {{ request()->routeIs('manager.dashboard') ? 'active' : '' }}" href="{{ route('manager.dashboard') }}">الرئيسية</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {{ request()->routeIs('manager.tasks') ? 'active' : '' }}" href="{{ route('manager.tasks') }}">المهام</a>
                         </li>
                         <li class="nav-item">
                             <a class="nav-link {{ request()->routeIs('manager.classes') ? 'active' : '' }}" href="{{ route('manager.classes') }}">دليل الصفوف</a>
@@ -300,7 +302,7 @@
 
                 <div class="d-flex align-items-center gap-2">
                     
-                    <!-- 🔔 نظام إشعارات الأدمن (أيقونة جرس فقط ثابتة لا تتغير بين الرئيسية والمهام) -->
+                    <!-- 🔔 إشعارات الأدمن -->
                     @if(auth()->check() && auth()->user()->role === 'admin')
                         @php
                             $pendingManagersList = \App\Models\User::where('role', 'manager')->where('status', 'pending')->latest()->take(5)->get();
@@ -347,22 +349,7 @@
                         </div>
                     @endif
 
-                    <!-- زر المدراء غير المفعلين للأدمن -->
-                    @if(auth()->check() && auth()->user()->role === 'admin')
-                        @php
-                            $deactCount = \App\Models\User::where('role', 'manager')->where('status', 'deactivated')->count();
-                        @endphp
-                        <a href="{{ route('admin.managers.deactivated') }}" class="btn btn-outline-warning btn-sm fw-bold rounded-2 px-2.5 position-relative" title="المدراء غير المفعلين">
-                            <i class="bi bi-person-x-fill"></i>
-                            @if($deactCount > 0)
-                                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size: 0.6rem;">
-                                    {{ $deactCount }}
-                                </span>
-                            @endif
-                        </a>
-                    @endif
-
-                    <!-- إشعارات المدير لغير الأدمن -->
+                    <!-- 🔔 إشعارات المدير المُعدلة (تستدعي دالة قراءة إشعارات المدير وتوجه لصفحة المهام مباشرة) -->
                     @if(auth()->check() && auth()->user()->role === 'manager')
                         @php
                             $unreadManagerNotifications = auth()->user()->unreadNotifications;
@@ -383,7 +370,8 @@
                                 </li>
                                 @forelse(auth()->user()->notifications->take(10) as $notification)
                                     <li>
-                                        <a class="dropdown-item p-2 rounded-2 mt-1 border-bottom text-wrap {{ $notification->read_at ? 'bg-white opacity-75' : 'bg-light fw-bold' }}" href="{{ $notification->data['url'] ?? '#' }}" onclick="event.preventDefault(); document.getElementById('mark-read-{{ $notification->id }}').submit();">
+                                        <!-- تم تعديل الرابط ليستدعي مسار manager.notifications.read ليعلمه كمقروء ويفتح صفحة المهام مباشرة دون 404 -->
+                                        <a class="dropdown-item p-2 rounded-2 mt-1 border-bottom text-wrap {{ $notification->read_at ? 'bg-white opacity-75' : 'bg-light fw-bold' }}" href="{{ Route::has('manager.notifications.read') ? route('manager.notifications.read', $notification->id) : route('manager.tasks') }}">
                                             <div class="d-flex align-items-center gap-2">
                                                 <i class="bi {{ $notification->data['icon'] ?? 'bi-person-plus-fill' }} text-primary fs-5"></i>
                                                 <div>
@@ -393,7 +381,6 @@
                                                 </div>
                                             </div>
                                         </a>
-                                        <form id="mark-read-{{ $notification->id }}" action="{{ route('parent.notification.read', $notification->id) }}" method="GET" class="d-none"></form>
                                     </li>
                                 @empty
                                     <li class="text-center text-muted py-4 small">
@@ -405,7 +392,7 @@
                         </div>
                     @endif
 
-                    <!-- إشعارات المعلم لغير الأدمن -->
+                    <!-- 🔔 إشعارات المعلم -->
                     @if(auth()->check() && auth()->user()->role === 'teacher')
                         @php
                             $unreadTeacherNotifications = auth()->user()->unreadNotifications;
@@ -447,7 +434,7 @@
                         </div>
                     @endif
 
-                    <!-- إشعارات ولي الأمر لغير الأدمن -->
+                    <!-- 🔔 إشعارات ولي الأمر -->
                     @if(auth()->check() && auth()->user()->role === 'parent')
                         @php
                             $unreadNotifications = auth()->user()->unreadNotifications;

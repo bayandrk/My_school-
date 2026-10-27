@@ -1,7 +1,9 @@
 <?php
 
 namespace App\Http\Controllers;
-
+use App\Models\School;
+use App\Models\Child;       
+use App\Models\DailyChange;
 use App\Models\User;
 use App\Services\ManagerLifecycleService;
 use Illuminate\Http\Request;
@@ -14,16 +16,22 @@ class AdminController extends Controller
 
     // عرض لوحة تحكم الأدمن (تعرض جدول الطلبات المعلقة والمفعلين مع البحث)
     public function dashboard(Request $request)
-    {
-        $search = $request->input('search');
+{
+    // جلب الإحصائيات الشاملة للنظام للمخططات والبطاقات
+    $schoolsCount      = School::count();
+    $studentsCount     = Child::count();
+    $parentsCount      = User::where('role', 'parent')->count();
+    $teachersCount     = User::where('role', 'teacher')->count();
+    $dailyChangesCount = class_exists(DailyChange::class) ? DailyChange::count() : 0;
 
-        return view('admin.dashboard', [
-            'pendingManagers'  => $this->managers->pendingManagers($search),
-            'approvedManagers' => $this->managers->approvedManagers($search),
-            'deactivatedCount' => $this->managers->deactivatedManagersCount(),
-            'search'           => $search,
-        ]);
-    }
+    return view('admin.dashboard', [
+        'schoolsCount'      => $schoolsCount,
+        'studentsCount'     => $studentsCount,
+        'parentsCount'      => $parentsCount,
+        'teachersCount'     => $teachersCount,
+        'dailyChangesCount' => $dailyChangesCount,
+    ]);
+}
 
     // عرض صفحة المهام (تحتوي على جدول الطلبات المعلقة والمفعلين والبحث)
     public function tasks(Request $request)

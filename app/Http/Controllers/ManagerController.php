@@ -61,21 +61,46 @@ class ManagerController extends Controller
         }
     }
 
-    public function dashboard(Request $request)
+public function dashboard(Request $request)
     {
         $this->checkManager();
         $school = $this->school();
 
-        // طلبات الأساتذة المعلقة (10 بـ 10)
+        // إحصائيات المدرسة الحالية للمخططات والبطاقات
+        $studentsCount     = $this->childrenQuery()->count();
+        $teachersCount     = $this->teachersQuery()->status(User::STATUS_APPROVED)->count();
+        
+        // حساب عدد أولياء الأمور المرتبطين بمدرسة المدير
+        $parentsCount = User::query()
+            ->role(User::ROLE_PARENT)
+            ->whereHas('schools', function($q) use ($school) {
+                $q->where('schools.id', $school?->id);
+            })->count();
+
+        // حساب عدد المتغيرات اليومية الخاصة بطلاب مدرسة المدير
+        $dailyChangesCount = DailyChange::whereHas('child', function($q) use ($school) {
+            $q->where('school_id', $school?->id);
+        })->count();
+
+        return view('manager.dashboard', compact(
+            'studentsCount',
+            'teachersCount',
+            'parentsCount',
+            'dailyChangesCount'
+        ));
+    }
+
+    // صفحة المهام والطلبات المعلقة الخاصة بالمدير
+    public function tasks(Request $request)
+    {
+        $this->checkManager();
+        $school = $this->school();
+
+        // طلبات الأساتذة المعلقة
         $pendingTeachers = $this->teachersQuery()
             ->status(User::STATUS_PENDING)
             ->latest()
             ->paginate(10, ['*'], 'pending_page');
-
-        // الأساتذة المعتمدون (للإحصائيات فقط)
-        $approvedTeachers = $this->teachersQuery()
-            ->status(User::STATUS_APPROVED)
-            ->get();
 
         // طلبات انضمام الأهل المعلقة
         $pendingJoinRequests = collect();
@@ -87,7 +112,7 @@ class ManagerController extends Controller
                 ->get();
         }
 
-        return view('manager.dashboard', compact('pendingTeachers', 'approvedTeachers', 'pendingJoinRequests'));
+        return view('manager.tasks', compact('pendingTeachers', 'pendingJoinRequests'));
     }
 
     // دالة إلغاء التعيين المتوافقة مع دالة التعيين
@@ -338,109 +363,113 @@ class ManagerController extends Controller
 
     // صفحة الصفوف الشاملة
     public function classes(Request $request)
-    {
-        $this->checkManager();
+{
+    $this->checkManager();
 
-        $selectedYear  = $request->get('year', date('Y'));
-        $studentSearch = $request->input('search_student');
-        $selectedClass = $request->input('class_filter');
+    $selectedYear  = $request->get('year', date('Y'));
+    $studentSearch = $request->input('search_student');
+    $selectedClass = $request->input('class_filter');
+    $selectedSection = $request->input('section_filter');
+    $selectedSubject = $request->input('subject_filter');
 
-        // 1. جلب جميع السنوات المتاحة ديناميكياً لطلاب المدرسة فقط
-        $availableYears = $this->childrenQuery()
-            ->selectRaw('YEAR(created_at) as year')
-            ->distinct()
-            ->pluck('year')
-            ->push((int)date('Y'))
-            ->unique()
-            ->sortDesc();
+    // 1. جلب جميع السنوات المتاحة ديناميكياً لطلاب المدرسة فقط
+    $availableYears = $this->childrenQuery()
+        ->selectRaw('YEAR(created_at) as year')
+        ->distinct()
+        ->pluck('year')
+        ->push((int)date('Y'))
+        ->unique()
+        ->sortDesc();
 
-        // 2. بناء استعلام الطلاب مع جلب العلاقات
-        $query = $this->childrenQuery()
-            ->with(['dailyChanges', 'teachers', 'parent'])
-            ->where(function($q) {
-                $q->where('status', 'active')->orWhereNull('status');
-            })
-            ->where(function($q) use ($selectedYear) {
-                $q->whereYear('created_at', $selectedYear)
-                  ->orWhere('class', 'LIKE', "%{$selectedYear}%");
-            });
-
-        if (!empty($selectedClass)) {
-            $query->where('class', $selectedClass);
-        }
-
-        // فلتر الشعبة (من قوائم المدرسة)
-        $selectedSection = $request->input('section_filter');
-        if (!empty($selectedSection)) {
-            $query->where('section', $selectedSection);
-        }
-
-        if (!empty($studentSearch)) {
-            $query->where('name', 'like', '%' . $studentSearch . '%');
-        }
-
-        $children = $query->get();
-
-        // 3. قائمة الصفوف الفريدة للفلتر (للطلاب النشطين فقط)
-        $allClassesList = $this->childrenQuery()
-            ->where(function($q) {
-                $q->where('status', 'active')->orWhereNull('status');
-            })
-            ->pluck('class')
-            ->unique()
-            ->sort()
-            ->values();
-
-        // 4. تجميع الطلاب حسب "الصف + الشعبة" بحيث تظهر كل شعبة كلوحتها الخاصة
-        $childrenGroupedByClass = $children->groupBy(function ($child) {
-            $section = $child->section ? ' - الشعبة ' . $child->section : '';
-            return $child->class . $section;
+    // 2. بناء استعلام الطلاب مع جلب العلاقات
+    $query = $this->childrenQuery()
+        ->with(['dailyChanges', 'teachers', 'parent'])
+        ->where(function($q) {
+            $q->where('status', 'active')->orWhereNull('status');
+        })
+        ->where(function($q) use ($selectedYear) {
+            $q->whereYear('created_at', $selectedYear)
+              ->orWhere('class', 'LIKE', "%{$selectedYear}%");
         });
 
-        $arabicNumbers = [
-            'الأول' => 1, 'اول' => 1,
-            'الثاني' => 2, 'ثاني' => 2,
-            'الثالث' => 3, 'ثالث' => 3,
-            'الرابع' => 4, 'رابع' => 4,
-            'الخامس' => 5, 'خامس' => 5,
-            'السادس' => 6, 'سادس' => 6,
-            'السابع' => 7, 'سابع' => 7,
-            'الثامن' => 8, 'ثامن' => 8,
-            'التاسع' => 9, 'تاسع' => 9,
-            'العاشر' => 10, 'عاشر' => 10,
-            'الحادي عشر' => 11, 'حادي عشر' => 11,
-            'الثاني عشر' => 12, 'ثاني عشر' => 12,
-        ];
-
-        $childrenGroupedByClass = $childrenGroupedByClass->sortKeysUsing(function ($a, $b) use ($arabicNumbers) {
-            $numA = 99;
-            $numB = 99;
-
-            foreach ($arabicNumbers as $word => $val) {
-                if (mb_strpos($a, $word) !== false) { $numA = $val; }
-                if (mb_strpos($b, $word) !== false) { $numB = $val; }
-            }
-
-            return ($numA === $numB) ? strcmp($a, $b) : ($numA <=> $numB);
-        });
-
-        // 5. حساب المعدل العام لكل طالب
-        foreach ($childrenGroupedByClass as $className => $students) {
-            foreach ($students as $student) {
-                $student->average_score = round($student->dailyChanges->whereNotNull('score')->avg('score'), 2);
-            }
-        }
-
-        return view('manager.classes', compact(
-            'childrenGroupedByClass',
-            'availableYears',
-            'selectedYear',
-            'allClassesList',
-            'studentSearch',
-            'selectedClass',
-            'selectedSection'
-        ))->with('school', $this->school());
+    if (!empty($selectedClass)) {
+        $query->where('class', $selectedClass);
     }
+
+    if (!empty($selectedSection)) {
+        $query->where('section', $selectedSection);
+    }
+
+    if (!empty($studentSearch)) {
+        $query->where('name', 'like', '%' . $studentSearch . '%');
+    }
+
+    $children = $query->get();
+
+    // 3. قائمة الصفوف الفريدة للفلتر
+    $allClassesList = $this->childrenQuery()
+        ->where(function($q) {
+            $q->where('status', 'active')->orWhereNull('status');
+        })
+        ->pluck('class')
+        ->unique()
+        ->sort()
+        ->values();
+
+    // 4. تجميع الطلاب حسب الصفوف أولاً
+    moh_grouped:
+    $childrenGroupedByClass = $children->groupBy('class');
+
+    $arabicNumbers = [
+        'الأول' => 1, 'اول' => 1,
+        'الثاني' => 2, 'ثاني' => 2,
+        'الثالث' => 3, 'ثالث' => 3,
+        'الرابع' => 4, 'رابع' => 4,
+        'الخامس' => 5, 'خامس' => 5,
+        'السادس' => 6, 'سادس' => 6,
+        'السابع' => 7, 'سابع' => 7,
+        'الثامن' => 8, 'ثامن' => 8,
+        'التاسع' => 9, 'تاسع' => 9,
+        'العاشر' => 10, 'عاشر' => 10,
+        'الحادي عشر' => 11, 'حادي عشر' => 11,
+        'الثاني عشر' => 12, 'ثاني عشر' => 12,
+    ];
+
+    $childrenGroupedByClass = $childrenGroupedByClass->sortKeysUsing(function ($a, $b) use ($arabicNumbers) {
+        $numA = 99;
+        $numB = 99;
+
+        foreach ($arabicNumbers as $word => $val) {
+            if (mb_strpos($a, $word) !== false) { $numA = $val; }
+            if (mb_strpos($b, $word) !== false) { $numB = $val; }
+        }
+
+        return ($numA === $numB) ? strcmp($a, $b) : ($numA <=> $numB);
+    });
+
+    // 5. حساب المعدل العام لكل طالب وتوزيع الشعب تحت كل صف
+    $structuredClasses = [];
+    foreach ($childrenGroupedByClass as $className => $students) {
+        foreach ($students as $student) {
+            $student->average_score = round($student->dailyChanges->whereNotNull('score')->avg('score'), 2);
+        }
+        // تجميع شعب الصف الواحد
+        $structuredClasses[$className] = $students->groupBy(function($student) {
+            return $student->section ?: 'عام';
+        });
+    }
+
+    return view('manager.classes', compact(
+        'structuredClasses',
+        'availableYears',
+        'selectedYear',
+        'allClassesList',
+        'studentSearch',
+        'selectedClass',
+        'selectedSection',
+        'selectedSubject'
+    ))->with('school', $this->school());
+}
 
     // صفحة سجلات طالب واحد (عرض السجلات كصفحة مستقلة)
     public function studentRecords(Request $request, Child $student)
@@ -848,6 +877,19 @@ class ManagerController extends Controller
 
         return back()->with('success', 'تم قبول طلب انضمام (' . $joinRequest->parent->name . ') وإضافة المدرسة لحسابه.');
     }
+    public function readNotification($id)
+{
+    $this->checkManager();
+    
+    $notification = auth()->user()->notifications()->where('id', $id)->first();
+
+    if ($notification) {
+        $notification->markAsRead();
+    }
+
+    // التوجيه المباشر إلى صفحة المهام لمنع أخطاء 404 أو التوجيه للرئيسية
+    return redirect()->route('manager.tasks');
+}
 
     /** رفض طلب انضمام ولي أمر */
     public function rejectJoinRequest(\App\Models\SchoolJoinRequest $joinRequest)

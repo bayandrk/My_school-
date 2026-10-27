@@ -164,14 +164,30 @@
 
         <!-- قائمة المدراء المفعلين -->
         <div class="admin-card">
-            <div class="p-3.5 card-header-active d-flex justify-content-between align-items-center fw-bold">
+            <div class="p-3.5 card-header-active d-flex justify-content-between align-items-center fw-bold flex-wrap gap-2">
                 <div class="d-flex align-items-center gap-2">
                     <i class="bi bi-person-check-fill fs-5"></i>
                     <span class="fs-6">قائمة المدراء المفعلين</span>
                 </div>
-                <span class="badge bg-success badge-count">
-                    {{ method_exists($approvedManagers, 'total') ? $approvedManagers->total() : $approvedManagers->count() }}
-                </span>
+                
+                <div class="d-flex align-items-center gap-2">
+                    <!-- 🟡 زر المدراء غير المفعلين بجانب عنوان الجدول -->
+                    @php
+                        $deactCount = \App\Models\User::where('role', 'manager')->where('status', 'deactivated')->count();
+                    @endphp
+                    <a href="{{ route('admin.managers.deactivated') }}" class="btn btn-warning btn-sm fw-bold rounded-2 px-3 py-1.5 position-relative text-dark shadow-sm d-flex align-items-center gap-1" title="المدراء غير المفعلين">
+                        <i class="bi bi-person-x-fill"></i> المدراء غير المفعلين
+                        @if($deactCount > 0)
+                            <span class="badge rounded-pill bg-danger ms-1" style="font-size: 0.65rem;">
+                                {{ $deactCount }}
+                            </span>
+                        @endif
+                    </a>
+
+                    <span class="badge bg-success badge-count">
+                        {{ method_exists($approvedManagers, 'total') ? $approvedManagers->total() : $approvedManagers->count() }}
+                    </span>
+                </div>
             </div>
             <div class="card-body p-0">
                 @if($approvedManagers->isEmpty())

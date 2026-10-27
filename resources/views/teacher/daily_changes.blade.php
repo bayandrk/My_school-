@@ -36,7 +36,6 @@
             box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 20%, transparent) !important;
         }
 
-        /* شارة المادة ديناميكية */
         .subject-badge {
             background-color: color-mix(in srgb, var(--primary-color) 12%, #ffffff);
             color: var(--primary-color);
@@ -60,7 +59,6 @@
             display: inline-block;
         }
 
-        /* شارة الدرجة تتبع لون المدرسة */
         .score-badge {
             background-color: var(--primary-color);
             color: var(--btn-text-color);
@@ -72,7 +70,16 @@
             display: inline-block;
         }
 
-        /* زر الحفظ والتصفية الرئيسي */
+        .class-section-badge {
+            background-color: #f1f5f9;
+            color: #475569;
+            border: 1px solid #e2e8f0;
+            font-weight: 600;
+            padding: 3px 8px;
+            border-radius: 6px;
+            font-size: 0.78rem;
+        }
+
         .btn-school-main {
             background-color: var(--primary-color) !important;
             border-color: var(--primary-color) !important;
@@ -87,7 +94,6 @@
             color: var(--btn-text-color) !important;
         }
 
-        /* زر التعديل في الجدول */
         .btn-action-edit {
             background-color: color-mix(in srgb, var(--primary-color) 12%, #ffffff) !important;
             border: 1.5px solid var(--primary-color) !important;
@@ -109,7 +115,6 @@
             color: var(--btn-text-color) !important;
         }
 
-        /* زر الحذف في الجدول */
         .btn-action-delete {
             background-color: #ffffff !important;
             border: 1.5px solid #ef4444 !important;
@@ -131,7 +136,6 @@
             color: #ffffff !important;
         }
 
-        /* تخصيص أزرار الانتقال بين الصفحات (Pagination) لتورث لون التطبيق */
         .pagination {
             margin-bottom: 0;
         }
@@ -191,21 +195,6 @@
         </div>
     @endif
 
-    @if($errors->any())
-        <div class="alert alert-danger alert-dismissible fade show rounded-3 mb-3 fw-bold py-2 shadow-sm" role="alert">
-            <div class="d-flex align-items-center mb-1">
-                <i class="bi bi-exclamation-triangle-fill me-2 fs-5"></i>
-                <span>يرجى التأكد من تصحيح الحقول التالية:</span>
-            </div>
-            <ul class="mb-0 ps-3 small">
-                @foreach($errors->all() as $error)
-                    <li>{{ $error }}</li>
-                @endforeach
-            </ul>
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-    @endif
-
     <!-- نموذج إضافة سجل جديد -->
     <div class="card main-card mb-4">
         <div class="p-3 bg-white border-bottom fw-bold d-flex align-items-center gap-2 text-primary">
@@ -249,7 +238,6 @@
                                 <option value="{{ $subj }}">{{ $subj }}</option>
                             @endforeach
                         </select>
-                        <!-- حقل الكتابة الحرة يظهر لما تختار "مخصص" -->
                         <input type="text" id="subjectCustom" name="subject" class="form-control mt-2 d-none" placeholder="اكتب المادة أو النشاط..." maxlength="255">
                     </div>
 
@@ -275,41 +263,6 @@
                     </button>
                 </div>
             </form>
-
-            @push('scripts')
-            <script>
-                document.addEventListener('DOMContentLoaded', function () {
-                    const select = document.getElementById('subjectSelect');
-                    const custom = document.getElementById('subjectCustom');
-                    if (!select || !custom) return;
-
-                    select.addEventListener('change', function () {
-                        if (this.value === '__custom__') {
-                            custom.classList.remove('d-none');
-                            custom.focus();
-                        } else {
-                            custom.classList.add('d-none');
-                            custom.value = '';
-                        }
-                    });
-
-                    // قبل الإرسال: إما المادة المختارة أو النص المخصص
-                    const form = custom.closest('form');
-                    form.addEventListener('submit', function () {
-                        if (select.value && select.value !== '__custom__') {
-                            custom.value = select.value;
-                        }
-                        if (!custom.value.trim()) {
-                            select.required = true;
-                            if (select.value === '__custom__' || !select.value) {
-                                alert('اختر مادة من القائمة أو اكتب موضوع مخصص.');
-                                event.preventDefault();
-                            }
-                        }
-                    });
-                });
-            </script>
-            @endpush
         </div>
     </div>
 
@@ -320,7 +273,6 @@
                 <i class="bi bi-journal-text text-primary fs-5"></i> سجل التقييمات مرتبة بالتاريخ والوقت
             </h6>
 
-            <!-- تصفية السجلات حسب التاريخ، ويكون تاريخ اليوم هو الافتراضي -->
             <form method="GET" action="{{ url()->current() }}" class="d-flex align-items-center gap-2">
                 <input type="date" name="date" class="form-control form-control-sm" value="{{ request('date', $selectedDate ?? date('Y-m-d')) }}" style="width: 145px;">
                 <button type="submit" class="btn btn-sm btn-school-main fw-bold px-3 py-1">
@@ -339,6 +291,7 @@
                         <tr>
                             <th class="py-2.5 text-muted">#</th>
                             <th class="py-2.5 text-start ps-3">اسم الطالب</th>
+                            <th class="py-2.5">الصف والشعبة</th> <!-- تم إضافة عمود الصف والشعبة هنا -->
                             <th class="py-2.5">المادة</th>
                             <th class="py-2.5">الدرجة</th>
                             <th class="py-2.5">الملاحظات</th>
@@ -357,24 +310,29 @@
                                     {{ method_exists($recordsList, 'firstItem') ? $recordsList->firstItem() + $index : $index + 1 }}
                                 </td>
                                 <td class="text-start ps-3 fw-bold text-dark">
-                                    {{ $record->child->name ?? $record->student->name ?? $record->student_name ?? 'غير محدد' }}
+                                    {{ $record->child->name ?? 'غير محدد' }}
                                 </td>
                                 <td>
-                                    <span class="subject-badge">
-                                        {{ $record->subject ?? $record->title ?? '-' }}
+                                    <span class="class-section-badge">
+                                        {{ $record->child->class ?? '-' }} {{ $record->child->section ? ' - ' . $record->child->section : '' }}
                                     </span>
                                 </td>
                                 <td>
-                                    @if(($record->score ?? $record->grade) !== null)
+                                    <span class="subject-badge">
+                                        {{ $record->subject ?? '-' }}
+                                    </span>
+                                </td>
+                                <td>
+                                    @if($record->score !== null)
                                         <span class="score-badge">
-                                            {{ $record->score ?? $record->grade }}
+                                            {{ $record->score }}
                                         </span>
                                     @else
                                         <span class="text-muted">-</span>
                                     @endif
                                 </td>
                                 <td class="text-secondary fw-semibold">
-                                    {{ $record->note ?? $record->notes ?? '-' }}
+                                    {{ $record->note ?? '-' }}
                                 </td>
                                 <td>
                                     <span class="date-badge">
@@ -410,7 +368,7 @@
                                                     <div class="modal-body text-end modal-rtl-fix">
                                                         <div class="mb-3">
                                                             <label class="form-label">المادة / النشاط:</label>
-                                                            <input type="text" name="subject" class="form-control" value="{{ $record->subject ?? $record->title }}" required>
+                                                            <input type="text" name="subject" class="form-control" value="{{ $record->subject }}" required>
                                                         </div>
                                                         <div class="mb-3">
                                                             <label class="form-label">التاريخ والوقت:</label>
@@ -418,11 +376,11 @@
                                                         </div>
                                                         <div class="mb-3">
                                                             <label class="form-label">الدرجة:</label>
-                                                            <input type="number" step="0.1" min="0" max="100" name="score" class="form-control" value="{{ $record->score ?? $record->grade }}">
+                                                            <input type="number" step="0.1" min="0" max="100" name="score" class="form-control" value="{{ $record->score }}">
                                                         </div>
                                                         <div class="mb-3">
                                                             <label class="form-label">الملاحظة:</label>
-                                                            <input type="text" name="note" class="form-control" value="{{ $record->note ?? $record->notes }}">
+                                                            <input type="text" name="note" class="form-control" value="{{ $record->note }}">
                                                         </div>
                                                     </div>
                                                     <div class="modal-footer border-0 d-flex justify-content-end gap-2">
@@ -437,7 +395,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="7" class="py-5 text-muted">
+                                <td colspan="8" class="py-5 text-muted">
                                     <i class="bi bi-inbox fs-2 d-block mb-2 text-secondary"></i>
                                     لا توجد سجلات مدخلة لهذا اليوم.
                                 </td>
@@ -447,7 +405,6 @@
                 </table>
             </div>
 
-            <!-- التنقل بين الصفحات 10 بـ 10 مع وراثة ألوان التطبيق -->
             @if(method_exists($recordsList, 'hasPages') && $recordsList->hasPages())
                 <div class="d-flex justify-content-center p-3 border-top">
                     {{ $recordsList->links('pagination::bootstrap-5') }}
@@ -461,64 +418,94 @@
 @push('scripts')
     <script>
         document.addEventListener('DOMContentLoaded', function () {
+            // سكربت اختيار المادة المخصصة
+            const select = document.getElementById('subjectSelect');
+            const custom = document.getElementById('subjectCustom');
+            if (select && custom) {
+                select.addEventListener('change', function () {
+                    if (this.value === '__custom__') {
+                        custom.classList.remove('d-none');
+                        custom.focus();
+                    } else {
+                        custom.classList.add('d-none');
+                        custom.value = '';
+                    }
+                });
+
+                const form = custom.closest('form');
+                form.addEventListener('submit', function (event) {
+                    if (select.value && select.value !== '__custom__') {
+                        custom.value = select.value;
+                    }
+                    if (!custom.value.trim()) {
+                        select.required = true;
+                        if (select.value === '__custom__' || !select.value) {
+                            alert('اختر مادة من القائمة أو اكتب موضوع مخصص.');
+                            event.preventDefault();
+                        }
+                    }
+                });
+            }
+
+            // سكربت الربط التفاعلي (الصف ← الشعبة ← الطالب)
             const studentsGrouped = @json($studentsGroupedByClassSection ?? []);
             const classSelect   = document.getElementById('class_select');
             const sectionSelect = document.getElementById('section_select');
             const studentSelect = document.getElementById('student_select');
 
-            // 1. اختيار الصف → يملأ الشعب
-            classSelect.addEventListener('change', function () {
-                const selectedClass = this.value;
-                sectionSelect.innerHTML = '<option value="">-- اختر الشعبة --</option>';
-                studentSelect.disabled = true;
-                studentSelect.innerHTML = '<option value="">-- اختر الشعبة أولاً --</option>';
-
-                if (selectedClass) {
-                    const sections = Object.keys(studentsGrouped)
-                        .map(k => k.split('||'))
-                        .filter(([cls]) => cls === selectedClass)
-                        .map(([, sec]) => sec)
-                        .filter(s => s !== '')
-                        .filter((v, i, arr) => arr.indexOf(v) === i);
-
-                    if (sections.length > 0) {
-                        sectionSelect.disabled = false;
-                        sections.forEach(sec => {
-                            const option = document.createElement('option');
-                            option.value = sec;
-                            option.textContent = sec;
-                            sectionSelect.appendChild(option);
-                        });
-                    } else {
-                        sectionSelect.disabled = true;
-                        sectionSelect.innerHTML = '<option value="">-- لا توجد شعب --</option>';
-                    }
-                } else {
-                    sectionSelect.disabled = true;
-                    sectionSelect.innerHTML = '<option value="">-- اختر الصف أولاً --</option>';
-                }
-            });
-
-            // 2. اختيار الشعبة → يملأ الطلاب
-            sectionSelect.addEventListener('change', function () {
-                const selectedClass = classSelect.value;
-                const selectedSection = this.value;
-                studentSelect.innerHTML = '<option value="">-- اختر الطالب --</option>';
-
-                const key = selectedClass + '||' + selectedSection;
-                if (selectedSection && studentsGrouped[key]) {
-                    studentSelect.disabled = false;
-                    studentsGrouped[key].forEach(student => {
-                        const option = document.createElement('option');
-                        option.value = student.id;
-                        option.textContent = student.name;
-                        studentSelect.appendChild(option);
-                    });
-                } else {
+            if (classSelect && sectionSelect && studentSelect) {
+                classSelect.addEventListener('change', function () {
+                    const selectedClass = this.value;
+                    sectionSelect.innerHTML = '<option value="">-- اختر الشعبة --</option>';
                     studentSelect.disabled = true;
                     studentSelect.innerHTML = '<option value="">-- اختر الشعبة أولاً --</option>';
-                }
-            });
+
+                    if (selectedClass) {
+                        const sections = Object.keys(studentsGrouped)
+                            .map(k => k.split('||'))
+                            .filter(([cls]) => cls === selectedClass)
+                            .map(([, sec]) => sec)
+                            .filter(s => s !== '')
+                            .filter((v, i, arr) => arr.indexOf(v) === i);
+
+                        if (sections.length > 0) {
+                            sectionSelect.disabled = false;
+                            sections.forEach(sec => {
+                                const option = document.createElement('option');
+                                option.value = sec;
+                                option.textContent = sec;
+                                sectionSelect.appendChild(option);
+                            });
+                        } else {
+                            sectionSelect.disabled = true;
+                            sectionSelect.innerHTML = '<option value="">-- لا توجد شعب --</option>';
+                        }
+                    } else {
+                        sectionSelect.disabled = true;
+                        sectionSelect.innerHTML = '<option value="">-- اختر الصف أولاً --</option>';
+                    }
+                });
+
+                sectionSelect.addEventListener('change', function () {
+                    const selectedClass = classSelect.value;
+                    const selectedSection = this.value;
+                    studentSelect.innerHTML = '<option value="">-- اختر الطالب --</option>';
+
+                    const key = selectedClass + '||' + selectedSection;
+                    if (selectedSection && studentsGrouped[key]) {
+                        studentSelect.disabled = false;
+                        studentsGrouped[key].forEach(student => {
+                            const option = document.createElement('option');
+                            option.value = student.id;
+                            option.textContent = student.name;
+                            studentSelect.appendChild(option);
+                        });
+                    } else {
+                        studentSelect.disabled = true;
+                        studentSelect.innerHTML = '<option value="">-- اختر الشعبة أولاً --</option>';
+                    }
+                });
+            }
         });
     </script>
 @endpush

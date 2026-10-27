@@ -219,110 +219,108 @@ class TeacherController extends Controller
     }
 
     // 3. صفحة الصفوف المسؤول عنها (مصفاة بالكامل لتستبعد المؤرشفين)
-    public function classes(Request $request)
-    {
-        $this->checkTeacher();
+   public function classes(Request $request)
+{
+    $this->checkTeacher();
 
-        $teacher = auth()->user();
-        $selectedYear = $request->get('year', date('Y'));
-        $selectedClass = $request->get('class_name');
-        $search = $request->input('search');
+    $teacher = auth()->user();
+    $selectedYear = $request->get('year', date('Y'));
+    $selectedClass = $request->get('class_name');
+    $search = $request->input('search');
 
-        // 1. جلب الأعوام الدراسية المتاحة للطلاب المفعلين فقط
-        $availableYears = $teacher->students()
-            ->where(function($q) {
-                $q->where('children.status', 'active')->orWhereNull('children.status');
-            })
-            ->selectRaw('YEAR(children.created_at) as year')
-            ->distinct()
-            ->pluck('year')
-            ->push((int)date('Y'))
-            ->unique()
-            ->sortDesc();
+    // 1. جلب الأعوام الدراسية المتاحة للطلاب المفعلين فقط
+    $availableYears = $teacher->students()
+        ->where(function($q) {
+            $q->where('children.status', 'active')->orWhereNull('children.status');
+        })
+        ->selectRaw('YEAR(children.created_at) as year')
+        ->distinct()
+        ->pluck('year')
+        ->push((int)date('Y'))
+        ->unique()
+        ->sortDesc();
 
-        // 2. جلب وتحديد قائمة الصفوف المتاحة للطلاب المفعلين فقط
-        $availableClasses = $teacher->students()
-            ->where(function($q) {
-                $q->where('children.status', 'active')->orWhereNull('children.status');
-            })
-            ->pluck('children.class')
-            ->unique()
-            ->filter()
-            ->values();
+    // 2. جلب وتحديد قائمة الصفوف المتاحة للطلاب المفعلين فقط
+    $availableClasses = $teacher->students()
+        ->where(function($q) {
+            $q->where('children.status', 'active')->orWhereNull('children.status');
+        })
+        ->pluck('children.class')
+        ->unique()
+        ->filter()
+        ->values();
 
-        // 3. بناء استعلام جلب الطلاب واستبعاد أي طالب مؤرشف
-        $query = $teacher->students()
-            ->with(['dailyChanges', 'parent'])
-            ->where(function($q) {
-                $q->where('children.status', 'active')->orWhereNull('children.status');
-            })
-            ->where(function($q) use ($selectedYear) {
-                $q->whereYear('children.created_at', $selectedYear)
-                  ->orWhere('children.class', 'LIKE', "%{$selectedYear}%");
-            });
-
-        if ($selectedClass) {
-            $query->where('children.class', $selectedClass);
-        }
-
-        // فلتر الشعبة
-        $selectedSection = $request->get('section_name');
-        if ($selectedSection) {
-            $query->where('children.section', $selectedSection);
-        }
-
-        if ($search) {
-            $query->where('children.name', 'like', "%{$search}%");
-        }
-
-        $students = $query->get();
-
-        // حساب المعدل العام لكل طالب بناءً على الدرجات المسجلة في dailyChanges
-        $students->transform(function ($student) {
-            $scores = $student->dailyChanges->whereNotNull('score')->pluck('score');
-            $student->average_score = $scores->count() > 0 ? round($scores->avg(), 1) : null;
-            return $student;
+    // 3. بناء استعلام جلب الطلاب واستبعاد أي طالب مؤرشف
+    $query = $teacher->students()
+        ->with(['dailyChanges', 'parent'])
+        ->where(function($q) {
+            $q->where('children.status', 'active')->orWhereNull('children.status');
+        })
+        ->where(function($q) use ($selectedYear) {
+            $q->whereYear('children.created_at', $selectedYear)
+              ->orWhere('children.class', 'LIKE', "%{$selectedYear}%");
         });
 
-        // 4. ترتيب الصفوف مدرسياً
-        $classOrder = [
-            'الصف الأول'   => 1,
-            'الصف الثاني'  => 2,
-            'الصف الثالث'  => 3,
-            'الصف الرابع'  => 4,
-            'الصف الخامس'  => 5,
-            'الصف السادس'  => 6,
-            'الصف السابع'  => 7,
-            'الصف الثامن'  => 8,
-            'الصف التاسع'  => 9,
-            'الصف العاشر'  => 10,
-            'الصف الحادي عشر'  => 11,
-            'الصف الثاني عشر'  => 12,
-        ];
-
-        // قائمة الشعب المتاحة (من قوائم المدرسة التي أضافها المدير)
-        $availableSections = $this->school()?->sections ?? [];
-        $availableSubjects = $this->school()?->subjects ?? [];
-
-        // 4. تجميع الطلاب حسب "الصف + الشعبة" بحيث تظهر كل شعبة كلوحتها الخاصة
-        $groupedClasses = $students->groupBy(function ($student) {
-            $section = $student->section ? ' - الشعبة ' . $student->section : '';
-            return $student->class . $section;
-        })->sortBy(function ($students, $key) use ($classOrder) {
-            // نستخرج اسم الصف فقط من المفتاح المركب للترتيب المدرسي
-            foreach ($classOrder as $className => $order) {
-                if (mb_strpos($key, $className) !== false) {
-                    return $order * 100 + strcmp($key, $className);
-                }
-            }
-            return 99000 + strcmp($key, '');
-        });
-
-        return view('teacher.classes', compact(
-            'groupedClasses', 'availableYears', 'selectedYear', 'availableClasses',
-            'availableSections', 'availableSubjects', 'selectedClass', 'selectedSection', 'search'
-        ));
+    if ($selectedClass) {
+        $query->where('children.class', $selectedClass);
     }
+
+    // فلتر الشعبة
+    $selectedSection = $request->get('section_name');
+    if ($selectedSection) {
+        $query->where('children.section', $selectedSection);
+    }
+
+    if ($search) {
+        $query->where('children.name', 'like', "%{$search}%");
+    }
+
+    $students = $query->get();
+
+    // حساب المعدل العام لكل طالب بناءً على الدرجات المسجلة في dailyChanges
+    $students->transform(function ($student) {
+        $scores = $student->dailyChanges->whereNotNull('score')->pluck('score');
+        $student->average_score = $scores->count() > 0 ? round($scores->avg(), 1) : null;
+        return $student;
+    });
+
+    // 4. ترتيب الصفوف مدرسياً
+    $classOrder = [
+        'الصف الأول'   => 1,
+        'الصف الثاني'  => 2,
+        'الصف الثالث'  => 3,
+        'الصف الرابع'  => 4,
+        'الصف الخامس'  => 5,
+        'الصف السادس'  => 6,
+        'الصف السابع'  => 7,
+        'الصف الثامن'  => 8,
+        'الصف التاسع'  => 9,
+        'الصف العاشر'  => 10,
+        'الصف الحادي عشر'  => 11,
+        'الصف الثاني عشر'  => 12,
+    ];
+
+    // قائمة الشعب والمواد المتاحة (من قوائم المدرسة التي أضافها المدير)
+    $availableSections = $this->school()?->sections ?? [];
+    $availableSubjects = $this->school()?->subjects ?? [];
+
+    // 5. تجميع الطلاب هرمياً حسب الصف أولاً، ثم حسب الشعبة داخله
+    $groupedClasses = $students->groupBy('class')->sortKeysUsing(function ($a, $b) use ($classOrder) {
+        $numA = $classOrder[$a] ?? 99;
+        $numB = $classOrder[$b] ?? 99;
+        return ($numA === $numB) ? strcmp($a, $b) : ($numA <=> $numB);
+    })->map(function ($studentsInClass) {
+        // داخل كل صف، نقوم بتجميع الطلاب حسب الشعبة
+        return $studentsInClass->groupBy(function ($student) {
+            return $student->section ?: 'عامة';
+        });
+    });
+
+    return view('teacher.classes', compact(
+        'groupedClasses', 'availableYears', 'selectedYear', 'availableClasses',
+        'availableSections', 'availableSubjects', 'selectedClass', 'selectedSection', 'search'
+    ));
+}
 
     /**
      * مفك مفتاح البطاقة المركب: "الصف X - الشعبة ص" → [اسم الصف، الشعبة]
@@ -340,178 +338,159 @@ class TeacherController extends Controller
     }
 
     // 4. صفحة عرض العلامات الخاصة بصف معين (للطلاب المفعلين فقط)
-    public function classScores(Request $request, $className)
-{
-    $this->checkTeacher();
-    $teacher = auth()->user();
-
-    $studentName = $request->input('student_name');
-    $subject     = $request->input('subject');
-    $date        = $request->input('date');
-
-    [$classOnly, $sectionOnly] = $this->splitClassName($className);
-
-    // 1. جلب معرفات الطلاب المفعلين لهذا الصف (مع الشعبة إن وجدت بالمفتاح المركب)
-    $studentIds = $teacher->students()
-        ->where('class', $classOnly)
-        ->when($sectionOnly, fn($q) => $q->where('section', $sectionOnly))
-        ->where(function($q) {
-            $q->where('children.status', 'active')->orWhereNull('children.status');
-        })
-        ->when($studentName, function($q) use ($studentName) {
-            $q->where('name', 'like', "%{$studentName}%");
-        })
-        ->pluck('children.id');
-
-    // 2. استعلام جلب سجلات العلامات مع الترتيب الأبجدي للطلاب والترقيم (10 بـ 10)
-    // نستبعد ملاحظات الأهل وردود الأنسة، والمواضيع المخصصة (يلي مش من قوائم المواد)
-    $schoolSubjects = $this->school()?->subjects ?? [];
-
-    $query = DailyChange::whereIn('child_id', $studentIds)
-        ->whereNotNull('score')
-        ->whereNotIn('source', ['parent_note', 'teacher_reply'])
-        ->when(!empty($schoolSubjects), function($q) use ($schoolSubjects) {
-            // العلامات: بس المواد المدرسية المعتمدة (مش الأنشطة المخصصة)
-            $q->whereIn('subject', $schoolSubjects);
-        })
-        ->with(['child' => function($q) {
-            $q->orderBy('name', 'asc'); // الترتيب الأبجدي لأسمات الطلاب
-        }])
-        ->whereHas('child', function($q) use ($studentName) {
-            $q->orderBy('name', 'asc');
-            if ($studentName) {
-                $q->where('name', 'like', "%{$studentName}%");
-            }
-        });
-
-    if ($subject) {
-        $query->where('subject', 'like', "%{$subject}%");
-    }
-
-    if ($date) {
-        $query->whereDate('recorded_at', $date);
-    }
-
-    // الترتيب أبجدي حسب اسم الطالب المرتبط بالسجل، ثم الترقيم 10 بـ 10
-    $dailyChanges = $query->join('children', 'daily_changes.child_id', '=', 'children.id')
-        ->orderBy('children.name', 'asc')
-        ->select('daily_changes.*')
-        ->paginate(10)
-        ->appends($request->all());
-
-    return view('teacher.class_scores', compact('className', 'dailyChanges', 'studentName', 'subject', 'date'));
-}
-
-    // 5. صفحة عرض الملاحظات الخاصة بصف معين (للطلاب المفعلين فقط)
-   // 5. صفحة عرض الملاحظات الخاصة بصف معين (للطلاب المفعلين فقط مرتبة أبجدياً ومع الترقيم 10 بـ 10)
-// 5. صفحة عرض الملاحظات والأنشطة الخاصة بصف معين (مرتبة أبجدياً ومع الترقيم 10 بـ 10)
-// 5. صفحة عرض الملاحظات والأنشطة فقط (تستبعد العلامات المجردة التي ليس بها ملاحظة)
-public function classNotes(Request $request, $className)
-{
-    $this->checkTeacher();
-    $teacher = auth()->user();
-
-    $studentName = $request->input('student_name');
-    $subject     = $request->input('subject');
-    $date        = $request->input('date');
-
-    [$classOnly, $sectionOnly] = $this->splitClassName($className);
-
-    // 1. جلب معرفات الطلاب المفعلين لهذا الصف (مع الشعبة إن وجدت بالمفتاح المركب)
-    $studentIds = $teacher->students()
-        ->where('class', $classOnly)
-        ->when($sectionOnly, fn($q) => $q->where('section', $sectionOnly))
-        ->where(function($q) {
-            $q->where('children.status', 'active')->orWhereNull('children.status');
-        })
-        ->when($studentName, function($q) use ($studentName) {
-            $q->where('children.name', 'like', "%{$studentName}%");
-        })
-        ->pluck('children.id');
-
-    // 2. استعلام جلب السجلات "يلي بضل": موضوع مخصص (مو من قوائم المواد)
-    // ولا ملاحظة ولي أمر ولا رد أنسة — لهيك نستبعد مصادر السجلات الخاصة بالأهل
-    $schoolSubjects = $this->school()?->subjects ?? [];
-
-    $query = DailyChange::whereIn('child_id', $studentIds)
-        ->when(!empty($schoolSubjects), function($q) use ($schoolSubjects) {
-            // موضوع مخصص: مش موجود بقوائم المدرسة (NOT IN مع تجاهل NULL آمناً)
-            $q->where(function($sub) use ($schoolSubjects) {
-                $sub->whereNotIn('subject', $schoolSubjects)
-                    ->orWhereNull('subject');
-            });
-        }, function($q) {
-            // إذا ما في قائمة مواد مدرسية: نرجع للسلوك القديم (بلا درجة = ملاحظة)
-            $q->whereNull('score');
-        })
-        ->whereNotIn('source', ['parent_note', 'teacher_reply'])
-        ->with('child');
-
-    if ($subject) {
-        $query->where('subject', 'like', "%{$subject}%");
-    }
-
-    if ($date) {
-        $query->whereDate('recorded_at', $date);
-    }
-
-    // الترتيب أبجدياً حسب اسم الطالب ثم الترقيم 10 بـ 10
-    $dailyChanges = $query->leftJoin('children', 'daily_changes.child_id', '=', 'children.id')
-        ->orderBy('children.name', 'asc')
-        ->select('daily_changes.*')
-        ->paginate(10)
-        ->appends($request->all());
-
-    return view('teacher.class_notes', compact('className', 'dailyChanges', 'studentName', 'subject', 'date'));
-}
-
-    // 6. صفحة السجلات المدخلة مرتبة حسب التاريخ والوقت (تاريخ اليوم افتراضياً + الترقيم 10 بـ 10)
-    public function dailyChanges(Request $request)
+    // 4. صفحة عرض العلامات الخاصة بشعبة صف معين (للطلاب المفعلين فقط)
+public function classScores(Request $request, $className)
     {
         $this->checkTeacher();
-
         $teacher = auth()->user();
+
+        $studentName = $request->input('student_name');
+        $subject     = $request->input('subject');
+        $date        = $request->input('date');
+
+        [$classOnly, $sectionOnly] = $this->splitClassName($className);
+
+        // جلب معرفات الطلاب المفعلين في هذا الصف وهذه الشعبة حصراً
         $studentIds = $teacher->students()
+            ->where('children.class', $classOnly)
+            ->when($sectionOnly, function($q) use ($sectionOnly) {
+                $q->where('children.section', $sectionOnly);
+            })
             ->where(function($q) {
                 $q->where('children.status', 'active')->orWhereNull('children.status');
-            })->pluck('children.id');
+            })
+            ->when($studentName, function($q) use ($studentName) {
+                $q->where('children.name', 'like', "%{$studentName}%");
+            })
+            ->pluck('children.id');
 
-        // 1. تحديد تاريخ اليوم كافتراضي إذا لم يتم اختيار تاريخ محدد من المعلم
-        $selectedDate = $request->input('date', date('Y-m-d'));
+        $schoolSubjects = $this->school()?->subjects ?? [];
 
-        // 2. استعلام السجلات اليومية المصفاة
-        $query = DailyChange::whereIn('child_id', $studentIds)->with('child');
+        $query = DailyChange::whereIn('child_id', $studentIds)
+            ->whereNotNull('score')
+            ->whereNotIn('source', ['parent_note', 'teacher_reply'])
+            ->when(!empty($schoolSubjects), function($q) use ($schoolSubjects) {
+                $q->whereIn('subject', $schoolSubjects);
+            });
 
-        if ($selectedDate) {
-            $query->whereDate('recorded_at', $selectedDate);
+        if ($subject) {
+            $query->where('subject', 'like', "%{$subject}%");
         }
 
-        // جلب السجلات مقسمة 10 بـ 10
-        $dailyChanges = $query->orderBy('recorded_at', 'desc')
+        if ($date) {
+            $query->whereDate('recorded_at', $date);
+        }
+
+        $dailyChanges = $query->join('children', 'daily_changes.child_id', '=', 'children.id')
+            ->orderBy('children.name', 'asc')
+            ->select('daily_changes.*')
             ->paginate(10)
             ->appends($request->all());
 
-        // جلب طلاب المعلم المفعلين فقط مجمعين حسب الصف لنموذج الإضافة
-        $students = $teacher->students()
-            ->where(function($q) {
-                $q->where('children.status', 'active')->orWhereNull('children.status');
-            })->get();
-
-        // تجميع حسب مفتاح مركب "الصف||الشعبة" (للتسلسل: صف ← شعبة ← طفل)
-        $studentsGroupedByClassSection = $students->groupBy(function ($child) {
-            return $child->class . '||' . ($child->section ?? '');
-        })->map(function ($group) {
-            return $group->map(fn ($s) => ['id' => $s->id, 'name' => $s->name]);
-        });
-
-        // قائمة المواد من قوائم المدرسة (التي أضافها المدير)
-        $schoolSubjects = $this->school()?->subjects ?? [];
-
-        return view('teacher.daily_changes', compact(
-            'dailyChanges', 'studentsGroupedByClassSection', 'schoolSubjects', 'selectedDate'
-        ));
+        return view('teacher.class_scores', compact('className', 'dailyChanges', 'studentName', 'subject', 'date'));
     }
 
+    public function classNotes(Request $request, $className)
+    {
+        $this->checkTeacher();
+        $teacher = auth()->user();
+
+        $studentName = $request->input('student_name');
+        $subject     = $request->input('subject');
+        $date        = $request->input('date');
+
+        [$classOnly, $sectionOnly] = $this->splitClassName($className);
+
+        // جلب معرفات الطلاب المفعلين في هذا الصف وهذه الشعبة حصراً
+        $studentIds = $teacher->students()
+            ->where('children.class', $classOnly)
+            ->when($sectionOnly, function($q) use ($sectionOnly) {
+                $q->where('children.section', $sectionOnly);
+            })
+            ->where(function($q) {
+                $q->where('children.status', 'active')->orWhereNull('children.status');
+            })
+            ->when($studentName, function($q) use ($studentName) {
+                $q->where('children.name', 'like', "%{$studentName}%");
+            })
+            ->pluck('children.id');
+
+        $schoolSubjects = $this->school()?->subjects ?? [];
+
+        $query = DailyChange::whereIn('child_id', $studentIds)
+            ->when(!empty($schoolSubjects), function($q) use ($schoolSubjects) {
+                $q->where(function($sub) use ($schoolSubjects) {
+                    $sub->whereNotIn('subject', $schoolSubjects)
+                        ->orWhereNull('subject');
+                });
+            }, function($q) {
+                $q->whereNull('score');
+            })
+            ->whereNotIn('source', ['parent_note', 'teacher_reply'])
+            ->with('child');
+
+        if ($subject) {
+            $query->where('subject', 'like', "%{$subject}%");
+        }
+
+        if ($date) {
+            $query->whereDate('recorded_at', $date);
+        }
+
+        $dailyChanges = $query->leftJoin('children', 'daily_changes.child_id', '=', 'children.id')
+            ->orderBy('children.name', 'asc')
+            ->select('daily_changes.*')
+            ->paginate(10)
+            ->appends($request->all());
+
+        return view('teacher.class_notes', compact('className', 'dailyChanges', 'studentName', 'subject', 'date'));
+    }
+    // 6. صفحة السجلات المدخلة مرتبة حسب التاريخ والوقت (تاريخ اليوم افتراضياً + الترقيم 10 بـ 10)
+    public function dailyChanges(Request $request)
+{
+    $this->checkTeacher();
+
+    $teacher = auth()->user();
+    $studentIds = $teacher->students()
+        ->where(function($q) {
+            $q->where('children.status', 'active')->orWhereNull('children.status');
+        })->pluck('children.id');
+
+    // 1. تحديد تاريخ اليوم كافتراضي إذا لم يتم اختيار تاريخ محدد من المعلم
+    $selectedDate = $request->input('date', date('Y-m-d'));
+
+    // 2. استعلام السجلات اليومية المصفاة مع جلب بيانات الطالب (class & section)
+    $query = DailyChange::whereIn('child_id', $studentIds)->with('child');
+
+    if ($selectedDate) {
+        $query->whereDate('recorded_at', $selectedDate);
+    }
+
+    // جلب السجلات مقسمة 10 بـ 10
+    $dailyChanges = $query->orderBy('recorded_at', 'desc')
+        ->paginate(10)
+        ->appends($request->all());
+
+    // جلب طلاب المعلم المفعلين فقط مجمعين حسب الصف لنموذج الإضافة
+    $students = $teacher->students()
+        ->where(function($q) {
+            $q->where('children.status', 'active')->orWhereNull('children.status');
+        })->get();
+
+    // تجميع حسب مفتاح مركب "الصف||الشعبة" (للتسلسل: صف ← شعبة ← طفل)
+    $studentsGroupedByClassSection = $students->groupBy(function ($child) {
+        return $child->class . '||' . ($child->section ?? '');
+    })->map(function ($group) {
+        return $group->map(fn ($s) => ['id' => $s->id, 'name' => $s->name]);
+    });
+
+    // قائمة المواد من قوائم المدرسة (التي أضافها المدير)
+    $schoolSubjects = $this->school()?->subjects ?? [];
+
+    return view('teacher.daily_changes', compact(
+        'dailyChanges', 'studentsGroupedByClassSection', 'schoolSubjects', 'selectedDate'
+    ));
+}
     // 7. صفحة سجل الطالب المنفرد (مع الترقيم 10 بـ 10 والفلترة)
     public function studentRecords(Request $request, $studentId)
     {

@@ -47,6 +47,7 @@ Route::middleware('auth')->group(function () {
     // --------------------------------------
     Route::prefix('admin')->name('admin.')->middleware('admin')->group(function () {
         Route::get('/dashboard', [AdminController::class, 'dashboard'])->name('dashboard');
+        Route::get('/tasks', [ManagerController::class, 'tasks'])->name('tasks');
         Route::get('/managers/deactivated', [AdminController::class, 'deactivatedManagers'])->name('managers.deactivated');
         Route::patch('/managers/{manager}/approve', [AdminController::class, 'approveManager'])->name('managers.approve');
         Route::delete('/managers/{manager}/reject', [AdminController::class, 'rejectManager'])->name('managers.reject');
@@ -61,9 +62,8 @@ Route::middleware('auth')->group(function () {
     // --------------------------------------
     Route::prefix('manager')->name('manager.')->group(function () {
         Route::get('/dashboard', [ManagerController::class, 'dashboard'])->name('dashboard');
-        Route::get('/tasks', function () {
-            return view('manager.tasks');
-        })->name('tasks');
+        Route::get('/tasks', [ManagerController::class, 'tasks'])->name('tasks');
+        Route::get('/notifications/{id}/read', [ManagerController::class, 'readNotification'])->name('notifications.read');
         Route::patch('/teachers/{teacher}/deactivate', [ManagerController::class, 'deactivateTeacher'])->name('teachers.deactivate');
         Route::patch('/teachers/{teacher}/reactivate', [ManagerController::class, 'reactivateTeacher'])->name('teachers.reactivate');
         Route::delete('/teachers/{teacher}/reject', [ManagerController::class, 'rejectTeacher'])->name('teachers.reject');
