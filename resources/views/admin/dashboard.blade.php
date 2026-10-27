@@ -1,7 +1,6 @@
 @extends('layouts.app')
 
 @section('title', 'لوحة تحكم الأدمن')
-@endsection
 
 @push('styles')
 <style>
