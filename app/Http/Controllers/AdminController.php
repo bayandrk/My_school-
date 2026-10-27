@@ -12,19 +12,23 @@ class AdminController extends Controller
         private readonly ManagerLifecycleService $managers,
     ) {}
 
-    // عرض لوحة تحكم الأدمن الفارغة حالياً (تحتوي على النافبار فقط)
+    // عرض لوحة تحكم الأدمن (تعرض جدول الطلبات المعلقة والمفعلين مع البحث)
     public function dashboard(Request $request)
     {
+        $search = $request->input('search');
+
         return view('admin.dashboard', [
-            'pendingCount'     => $this->managers->pendingManagers(null)->count(),
+            'pendingManagers'  => $this->managers->pendingManagers($search),
+            'approvedManagers' => $this->managers->approvedManagers($search),
             'deactivatedCount' => $this->managers->deactivatedManagersCount(),
+            'search'           => $search,
         ]);
     }
 
     // عرض صفحة المهام (تحتوي على جدول الطلبات المعلقة والمفعلين والبحث)
     public function tasks(Request $request)
     {
-        $search =$request->input('search');
+        $search = $request->input('search');
 
         return view('admin.tasks', [
             'pendingManagers'  => $this->managers->pendingManagers($search),
