@@ -143,9 +143,16 @@
     </div>
 
     <!-- جدول عرض العلامات -->
+    @php
+        $totalScoresCount = 0;
+        foreach($students as $student) {
+            $totalScoresCount += $student->dailyChanges->count();
+        }
+    @endphp
+
     <div class="main-card">
         <div class="card-body p-0">
-            @if($students->isEmpty())
+            @if($students->isEmpty() || $totalScoresCount === 0)
                 <div class="text-center py-5 text-muted">
                     <i class="bi bi-inbox fs-2 d-block mb-2 text-secondary opacity-50"></i>
                     <p class="fw-bold mb-0 small">لا توجد سجلات علامات مطابقة لخيارات البحث حالياً.</p>
@@ -164,11 +171,12 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @php $counter = 1; @endphp
+                            @php $globalCounter = 0; @endphp
                             @foreach($students as $student)
                                 @foreach($student->dailyChanges as $change)
-                                    <tr>
-                                        <td class="fw-bold text-muted">{{ $counter++ }}</td>
+                                    @php $globalCounter++; @endphp
+                                    <tr class="score-row" data-index="{{ $globalCounter }}" style="{{ $globalCounter > 10 ? 'display: none;' : '' }}">
+                                        <td class="fw-bold text-muted">{{ $globalCounter }}</td>
                                         <td class="text-start ps-4 fw-bold text-dark">{{ $student->name }}</td>
                                         <td>
                                             <span class="subject-badge">{{ $change->subject }}</span>
@@ -190,8 +198,45 @@
                         </tbody>
                     </table>
                 </div>
+
+                <!-- زر عرض المزيد -->
+                @if($totalScoresCount > 10)
+                    <div class="text-center py-3 border-top" id="load-more-container">
+                        <button type="button" onclick="loadMoreScores()" class="btn btn-search-school btn-sm px-4 fw-bold rounded-3">
+    عرض المزيد <i class="bi bi-chevron-down ms-1"></i>
+</button>
+                       
+                    </div>
+                @endif
             @endif
         </div>
     </div>
 
 @endsection
+
+@push('scripts')
+<script>
+    let currentVisibleScores = 10;
+    const totalScores = {{ $totalScoresCount }};
+
+    function loadMoreScores() {
+        currentVisibleScores += 10;
+        const rows = document.querySelectorAll('.score-row');
+        
+        rows.forEach(row => {
+            const index = parseInt(row.getAttribute('data-index'));
+            if (index <= currentVisibleScores) {
+                row.style.display = '';
+            }
+        });
+
+        // إخفاء زر "عرض المزيد" عند اكتمال عرض السجلات
+        if (currentVisibleScores >= totalScores) {
+            const btnContainer = document.getElementById('load-more-container');
+            if (btnContainer) {
+                btnContainer.style.display = 'none';
+            }
+        }
+    }
+</script>
+@endpush

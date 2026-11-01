@@ -198,8 +198,8 @@
                         <tbody>
                             @php $counter = 1; @endphp
                             @foreach($notes as $note)
-                                <tr>
-                                    <td class="fw-bold text-muted">{{ $counter++ }}</td>
+                                <tr class="note-row" data-index="{{ $counter }}" style="{{ $counter > 10 ? 'display: none;' : '' }}">
+                                    <td class="fw-bold text-muted">{{ $counter }}</td>
                                     <td class="text-start ps-4 fw-bold text-dark">
                                         <div class="student-cell">
                                         {{ $note->child->name }}
@@ -243,12 +243,48 @@
                                         </span>
                                     </td>
                                 </tr>
+                                @php $counter++; @endphp
                             @endforeach
                         </tbody>
                     </table>
                 </div>
+
+                <!-- زر عرض المزيد -->
+                @if($notes->count() > 10)
+                    <div class="text-center py-3 border-top" id="load-more-container">
+                        <button type="button" onclick="loadMoreNotes()" class="btn btn-search-school btn-sm px-4 fw-bold rounded-3">
+    عرض المزيد <i class="bi bi-chevron-down ms-1"></i>
+</button>
+                    </div>
+                @endif
             @endif
         </div>
     </div>
 
 @endsection
+
+@push('scripts')
+<script>
+    let currentVisibleNotes = 10;
+    const totalNotes = {{ $notes->count() }};
+
+    function loadMoreNotes() {
+        currentVisibleNotes += 10;
+        const rows = document.querySelectorAll('.note-row');
+        
+        rows.forEach(row => {
+            const index = parseInt(row.getAttribute('data-index'));
+            if (index <= currentVisibleNotes) {
+                row.style.display = '';
+            }
+        });
+
+        if (currentVisibleNotes >= totalNotes) {
+            const btnContainer = document.getElementById('load-more-container');
+            if (btnContainer) {
+                btnContainer.style.display = 'none';
+            }
+        }
+    }
+</script>
+@endpush

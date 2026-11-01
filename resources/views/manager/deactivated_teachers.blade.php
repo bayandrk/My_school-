@@ -61,8 +61,9 @@
                         </thead>
                         <tbody>
                             @foreach($teachers as $index => $teacher)
-                                <tr>
-                                    <td class="fw-bold text-muted">{{ $index + 1 }}</td>
+                                @php $rowNum = $index + 1; @endphp
+                                <tr class="deactivated-teacher-row" data-index="{{ $rowNum }}" style="{{ $rowNum > 10 ? 'display: none;' : '' }}">
+                                    <td class="fw-bold text-muted">{{ $rowNum }}</td>
                                     <td class="text-start ps-3 fw-bold text-dark">{{ $teacher->name }}</td>
                                     <td class="text-secondary">{{ $teacher->email }}</td>
                                     <td class="text-secondary">{{ $teacher->phone ?? '-' }}</td>
@@ -80,9 +81,39 @@
                             @endforeach
                         </tbody>
                     </table>
+
+                    @if($teachers->count() > 10)
+                        <div class="text-center py-3 border-top" id="load-more-deactivated-container">
+                            <button type="button" onclick="loadMoreDeactivated()" class="btn btn-primary btn-sm px-4 fw-bold rounded-3">
+                                عرض المزيد <i class="bi bi-chevron-down ms-1"></i>
+                            </button>
+                        </div>
+                    @endif
                 </div>
             @endif
         </div>
     </div>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+    // عرض الأساتذة غير المفعلين 10 بـ 10 (نفس طريقة صفحة الصفوف)
+    let visibleDeactivated = 10;
+
+    function loadMoreDeactivated() {
+        visibleDeactivated += 10;
+
+        const rows = document.querySelectorAll('.deactivated-teacher-row');
+        rows.forEach(row => {
+            const index = parseInt(row.getAttribute('data-index'));
+            if (index <= visibleDeactivated) row.style.display = '';
+        });
+
+        if (visibleDeactivated >= rows.length) {
+            const btnContainer = document.getElementById('load-more-deactivated-container');
+            if (btnContainer) btnContainer.style.display = 'none';
+        }
+    }
+</script>
+@endpush

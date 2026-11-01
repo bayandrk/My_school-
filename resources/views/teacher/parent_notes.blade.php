@@ -48,7 +48,8 @@
             </h6>
         </div>
     @else
-        <div class="row g-4">
+        <!-- حاوية بطاقات الطلاب (تعرض 10 بطاقات فقط مبدئياً والباقي مخفي) -->
+        <div class="row g-4 parent-notes-container">
             @foreach($studentsWithNotes as $childId => $notesGroup)
                 @php
                     $student = $notesGroup->first()->child;
@@ -58,7 +59,7 @@
                     $latestReply = $latestNoteModel->replies->sortByDesc('created_at')->first();
                 @endphp
 
-                <div class="col-md-6 col-lg-4">
+                <div class="col-md-6 col-lg-4 parent-note-card-item {{ $loop->index >= 10 ? 'd-none' : '' }}">
                     <div class="card border-0 shadow-sm rounded-4 h-100 p-3 bg-white d-flex flex-column" style="border-right: 5px solid var(--primary-color) !important;">
 
                         <!-- معلومات الطالب -->
@@ -72,7 +73,7 @@
                             </div>
                         </div>
 
-                        <!-- 📌 أحدث ملاحظة من الأم (من حقل الملاحظة في جدول التغيرات اليومية) -->
+                        <!-- 📌 أحدث ملاحظة من الأم -->
                         <div class="p-3 rounded-3 mb-2" style="background-color: #f8fafc; border: 1px solid #e2e8f0;">
                             <div class="d-flex justify-content-between align-items-center mb-1">
                                 <span class="small fw-bold text-primary">
@@ -93,7 +94,7 @@
                             @endif
                         </div>
 
-                        <!-- رد المعلمة إن وجد (من جدول التغيرات اليومية source = teacher_reply) -->
+                        <!-- رد المعلمة إن وجد -->
                         @if($latestReply)
                             <div class="p-3 rounded-3 mb-3 bg-light border-start border-3 border-success">
                                 <span class="small fw-bold d-block mb-1 text-success">
@@ -119,7 +120,7 @@
                     </div>
                 </div>
 
-                <!-- Modal عرض سجل الملاحظات بالكامل (ملاحظات الأم + ردود المعلمة من الأحدث) -->
+                <!-- Modal عرض سجل الملاحظات بالكامل (10 عناصر في المرة الواحدة) -->
                 <div class="modal fade" id="historyModal{{ $student->id }}" tabindex="-1" aria-hidden="true">
                     <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
                         <div class="modal-content border-0 rounded-4 shadow">
@@ -129,35 +130,46 @@
                                 </h6>
                                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                             </div>
-                            <div class="modal-body p-4">
+                            <div class="modal-body p-4 history-modal-body">
                                 @php
                                     $allRecords = $notesGroup->flatMap(function($note) {
                                         return collect([$note])->merge($note->replies);
                                     })->sortByDesc('recorded_at');
                                 @endphp
-                                @foreach($allRecords as $index => $record)
-                                    @if($record->source === 'parent_note')
-                                        <div class="p-3 rounded-3 mb-3 {{ $index === 0 ? 'bg-primary bg-opacity-10 border border-primary' : 'bg-light border' }}">
-                                            <div class="d-flex justify-content-between align-items-center mb-2">
-                                                <span class="badge {{ $index === 0 ? 'bg-primary' : 'bg-secondary' }}">
-                                                    <i class="bi bi-person-fill me-1"></i> ملاحظة ولي الأمر
-                                                </span>
-                                                <span class="text-muted" style="font-size: 0.7rem;">{{ \Carbon\Carbon::parse($record->recorded_at)->format('Y-m-d H:i') }}</span>
+                                
+                                @foreach($allRecords as $recIndex => $record)
+                                    <div class="history-item-row @if($recIndex >= 10) d-none @endif">
+                                        @if($record->source === 'parent_note')
+                                            <div class="p-3 rounded-3 mb-3 {{ $recIndex === 0 ? 'bg-primary bg-opacity-10 border border-primary' : 'bg-light border' }}">
+                                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                                    <span class="badge {{ $recIndex === 0 ? 'bg-primary' : 'bg-secondary' }}">
+                                                        <i class="bi bi-person-fill me-1"></i> ملاحظة ولي الأمر
+                                                    </span>
+                                                    <span class="text-muted" style="font-size: 0.7rem;">{{ \Carbon\Carbon::parse($record->recorded_at)->format('Y-m-d H:i') }}</span>
+                                                </div>
+                                                <p class="mb-2 small fw-semibold text-dark" style="white-space: pre-line;">{{ $record->note }}</p>
                                             </div>
-                                            <p class="mb-2 small fw-semibold text-dark" style="white-space: pre-line;">{{ $record->note }}</p>
-                                        </div>
-                                    @else
-                                        <div class="p-3 rounded-3 mb-3 bg-success bg-opacity-10 border border-success border-opacity-25 me-4">
-                                            <div class="d-flex justify-content-between align-items-center mb-2">
-                                                <span class="badge bg-success">
-                                                    <i class="bi bi-reply-fill me-1"></i> رد المعلمة
-                                                </span>
-                                                <span class="text-muted" style="font-size: 0.7rem;">{{ \Carbon\Carbon::parse($record->recorded_at)->format('Y-m-d H:i') }}</span>
+                                        @else
+                                            <div class="p-3 rounded-3 mb-3 bg-success bg-opacity-10 border border-success border-opacity-25 me-4">
+                                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                                    <span class="badge bg-success">
+                                                        <i class="bi bi-reply-fill me-1"></i> رد المعلمة
+                                                    </span>
+                                                    <span class="text-muted" style="font-size: 0.7rem;">{{ \Carbon\Carbon::parse($record->recorded_at)->format('Y-m-d H:i') }}</span>
+                                                </div>
+                                                <p class="mb-0 small fw-semibold text-dark" style="white-space: pre-line;">{{ $record->note }}</p>
                                             </div>
-                                            <p class="mb-0 small fw-semibold text-dark" style="white-space: pre-line;">{{ $record->note }}</p>
-                                        </div>
-                                    @endif
+                                        @endif
+                                    </div>
                                 @endforeach
+
+                                @if($allRecords->count() > 10)
+                                    <div class="text-center mt-3 mb-2 load-more-history-container">
+                                        <button type="button" class="btn btn-sm btn-outline-primary px-4 fw-bold rounded-pill btn-load-more-history">
+                                            <i class="bi bi-chevron-down me-1"></i> عرض المزيد 
+                                        </button>
+                                    </div>
+                                @endif
                             </div>
                             <div class="modal-footer border-0">
                                 <button type="button" class="btn btn-secondary btn-sm rounded-3 px-4" data-bs-dismiss="modal">إغلاق</button>
@@ -166,7 +178,7 @@
                     </div>
                 </div>
 
-                <!-- Modal نموذج الرد على الملاحظة (حقل الملاحظة فقط - يُسجل تلقائياً كرد المعلمة) -->
+                <!-- Modal نموذج الرد على الملاحظة -->
                 <div class="modal fade" id="replyModal{{ $latestNoteModel->id }}" tabindex="-1" aria-hidden="true">
                     <div class="modal-dialog modal-dialog-centered">
                         <div class="modal-content border-0 rounded-4 shadow">
@@ -199,6 +211,69 @@
                 </div>
             @endforeach
         </div>
+
+        <!-- زر عرض المزيد لبطاقات الطلاب في الصفحة الرئيسية -->
+        @if($studentsWithNotes->count() > 10)
+            <div class="text-center mt-5 mb-4" id="loadMoreParentNotesContainer">
+                <button type="button" class="btn btn-primary px-5 py-2 fw-bold rounded-pill shadow-sm" id="loadMoreParentNotesBtn" style="background-color: var(--primary-color); border-color: var(--primary-color);">
+                    <i class="bi bi-chevron-down me-1"></i> عرض المزيد 
+                </button>
+            </div>
+        @endif
     @endif
 </div>
 @endsection
+
+@push('scripts')
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // 1. زر "عرض المزيد" لبطاقات الطلاب في الصفحة الرئيسية
+        const loadMoreBtn = document.getElementById('loadMoreParentNotesBtn');
+        if (loadMoreBtn) {
+            loadMoreBtn.addEventListener('click', function () {
+                const hiddenCards = document.querySelectorAll('.parent-note-card-item.d-none');
+                
+                let shown = 0;
+                hiddenCards.forEach(card => {
+                    if (shown < 10) {
+                        card.classList.remove('d-none');
+                        shown++;
+                    }
+                });
+
+                if (document.querySelectorAll('.parent-note-card-item.d-none').length === 0) {
+                    const container = document.getElementById('loadMoreParentNotesContainer');
+                    if (container) {
+                        container.style.display = 'none';
+                    }
+                }
+            });
+        }
+
+        // 2. زر "عرض المزيد" داخل مودال السجل الكامل
+        document.addEventListener('click', function (e) {
+            const btn = e.target.closest('.btn-load-more-history');
+            if (btn) {
+                e.preventDefault();
+                const modalBody = btn.closest('.history-modal-body');
+                const hiddenRows = modalBody.querySelectorAll('.history-item-row.d-none');
+                
+                let shown = 0;
+                hiddenRows.forEach(row => {
+                    if (shown < 10) {
+                        row.classList.remove('d-none');
+                        shown++;
+                    }
+                });
+
+                if (modalBody.querySelectorAll('.history-item-row.d-none').length === 0) {
+                    const container = btn.closest('.load-more-history-container');
+                    if (container) {
+                        container.style.display = 'none';
+                    }
+                }
+            }
+        });
+    });
+</script>
+@endpush

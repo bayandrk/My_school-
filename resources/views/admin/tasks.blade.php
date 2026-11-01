@@ -125,8 +125,9 @@
                             </thead>
                             <tbody>
                                 @foreach($pendingManagers as $index => $manager)
-                                    <tr>
-                                        <td class="fw-bold text-muted">{{ $index + 1 }}</td>
+                                    @php $rowNum = $index + 1; @endphp
+                                    <tr class="pending-manager-row {{ $rowNum > 5 ? 'd-none' : '' }}" data-index="{{ $rowNum }}">
+                                        <td class="fw-bold text-muted">{{ $rowNum }}</td>
                                         <td class="text-start ps-4 fw-bold text-dark">{{ $manager->name }}</td>
                                         <td>
                                             <span class="school-badge">{{ $manager->school?->name ?? 'غير محدد' }}</span>
@@ -158,6 +159,15 @@
                             </tbody>
                         </table>
                     </div>
+
+                    <!-- زر عرض المزيد (5 بـ 5 بدون تحديث الصفحة) -->
+                    @if($pendingManagers->count() > 5)
+                        <div class="p-3 text-center border-top" id="load-more-pending-container">
+                            <button type="button" onclick="loadMorePending()" class="btn btn-primary btn-sm px-4 fw-bold">
+                                <i class="bi bi-chevron-down me-1"></i> عرض المزيد
+                            </button>
+                        </div>
+                    @endif
                 @endif
             </div>
         </div>
@@ -211,10 +221,9 @@
                             </thead>
                             <tbody>
                                 @foreach($approvedManagers as $index => $manager)
-                                    <tr>
-                                        <td class="fw-bold text-muted">
-                                            {{ method_exists($approvedManagers, 'firstItem') ? $approvedManagers->firstItem() + $index : $index + 1 }}
-                                        </td>
+                                    @php $rowNum = $index + 1; @endphp
+                                    <tr class="approved-manager-row {{ $rowNum > 5 ? 'd-none' : '' }}" data-index="{{ $rowNum }}">
+                                        <td class="fw-bold text-muted">{{ $rowNum }}</td>
                                         <td class="text-start ps-4 fw-bold text-dark">{{ $manager->name }}</td>
                                         <td>
                                             <span class="school-badge">{{ $manager->school?->name ?? 'غير محدد' }}</span>
@@ -239,9 +248,12 @@
                         </table>
                     </div>
 
-                    @if(method_exists($approvedManagers, 'hasPages') && $approvedManagers->hasPages())
-                        <div class="d-flex justify-content-center p-3 border-top">
-                            {{ $approvedManagers->links('pagination::bootstrap-5') }}
+                    <!-- زر عرض المزيد (5 بـ 5 بدون تحديث الصفحة) -->
+                    @if($approvedManagers->count() > 5)
+                        <div class="p-3 text-center border-top" id="load-more-approved-container">
+                            <button type="button" onclick="loadMoreApproved()" class="btn btn-success btn-sm px-4 fw-bold">
+                                <i class="bi bi-chevron-down me-1"></i> عرض المزيد
+                            </button>
                         </div>
                     @endif
                 @endif
@@ -250,3 +262,43 @@
 
     </div>
 @endsection
+
+@push('scripts')
+<script>
+    // عرض الطلبات المعلقة 5 بـ 5 (نفس طريقة عرض المزيد في الصفوف)
+    let visiblePending = 5;
+
+    function loadMorePending() {
+        visiblePending += 5;
+
+        const rows = document.querySelectorAll('.pending-manager-row');
+        rows.forEach(row => {
+            const index = parseInt(row.getAttribute('data-index'));
+            if (index <= visiblePending) row.classList.remove('d-none');
+        });
+
+        if (visiblePending >= rows.length) {
+            const btnContainer = document.getElementById('load-more-pending-container');
+            if (btnContainer) btnContainer.style.display = 'none';
+        }
+    }
+
+    // عرض المدراء المفعلين 5 بـ 5
+    let visibleApproved = 5;
+
+    function loadMoreApproved() {
+        visibleApproved += 5;
+
+        const rows = document.querySelectorAll('.approved-manager-row');
+        rows.forEach(row => {
+            const index = parseInt(row.getAttribute('data-index'));
+            if (index <= visibleApproved) row.classList.remove('d-none');
+        });
+
+        if (visibleApproved >= rows.length) {
+            const btnContainer = document.getElementById('load-more-approved-container');
+            if (btnContainer) btnContainer.style.display = 'none';
+        }
+    }
+</script>
+@endpush

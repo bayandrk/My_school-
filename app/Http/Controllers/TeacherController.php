@@ -46,21 +46,30 @@ class TeacherController extends Controller
             $q->where('status', 'active')->orWhereNull('status');
         })->pluck('class')->unique()->filter()->count();
 
-        // 3. إجمالي السجلات والتقييمات المدخلة للطلاب المفعلين
+        // 3. إجمالي السجلات والتقييمات المدخلة (باستثناء ملاحظات الأهل وردود المعلمة)
         $totalLogs = DailyChange::where('teacher_id', $teacherId)
             ->whereHas('child', function($q) {
                 $q->where('status', 'active')->orWhereNull('status');
-            })->count();
+            })
+            ->whereNotIn('source', ['parent_note', 'teacher_reply'])
+            ->count();
 
-        // 4. أحدث 5 سجلات مضافة مؤخراً للطلاب المفعلين
-        $recentRecords = DailyChange::where('teacher_id', $teacherId)
+        // 4. أحدث سجل واحد فقط لكل طالب من سجلات اليوم (العلامات والملاحظات فقط)
+        $latestIds = DailyChange::where('teacher_id', $teacherId)
             ->whereHas('child', function($q) {
                 $q->where('status', 'active')->orWhereNull('status');
             })
+            ->whereNotIn('source', ['parent_note', 'teacher_reply'])
+            ->whereDate('recorded_at', today())
+            ->selectRaw('MAX(id) as id')
+            ->groupBy('child_id')
+            ->pluck('id');
+
+        $recentRecords = DailyChange::whereIn('id', $latestIds)
             ->with('child')
-            ->latest()
-            ->take(5)
-            ->get();
+            ->latest('recorded_at')
+            ->paginate(10)
+            ->withQueryString();
 
         return view('teacher.dashboard', compact('totalStudents', 'totalClasses', 'totalLogs', 'recentRecords'));
     }
@@ -219,7 +228,7 @@ class TeacherController extends Controller
     }
 
     // 3. صفحة الصفوف المسؤول عنها (مصفاة بالكامل لتستبعد المؤرشفين)
-   public function classes(Request $request)
+    public function classes(Request $request)
 {
     $this->checkTeacher();
 
@@ -300,24 +309,28 @@ class TeacherController extends Controller
         'الصف الثاني عشر'  => 12,
     ];
 
-    // قائمة الشعب والمواد المتاحة (من قوائم المدرسة التي أضافها المدير)
+    // قائمة الشعب والمواد المتاحة
     $availableSections = $this->school()?->sections ?? [];
     $availableSubjects = $this->school()?->subjects ?? [];
 
-    // 5. تجميع الطلاب هرمياً حسب الصف أولاً، ثم حسب الشعبة داخله
+    // 5. تجميع الطلاب هرمياً حسب الصف والشعبة
     $groupedClasses = $students->groupBy('class')->sortKeysUsing(function ($a, $b) use ($classOrder) {
         $numA = $classOrder[$a] ?? 99;
         $numB = $classOrder[$b] ?? 99;
         return ($numA === $numB) ? strcmp($a, $b) : ($numA <=> $numB);
     })->map(function ($studentsInClass) {
-        // داخل كل صف، نقوم بتجميع الطلاب حسب الشعبة
         return $studentsInClass->groupBy(function ($student) {
             return $student->section ?: 'عامة';
+        })->map(function ($studentsInSection) {
+            return [
+                'students' => $studentsInSection,
+                'total'    => $studentsInSection->count()
+            ];
         });
     });
 
     return view('teacher.classes', compact(
-        'groupedClasses', 'availableYears', 'selectedYear', 'availableClasses',
+        'groupedClasses', 'students', 'availableYears', 'selectedYear', 'availableClasses',
         'availableSections', 'availableSubjects', 'selectedClass', 'selectedSection', 'search'
     ));
 }
@@ -368,6 +381,11 @@ public function classScores(Request $request, $className)
 
         $query = DailyChange::whereIn('child_id', $studentIds)
             ->whereNotNull('score')
+            ->where(function($q) use ($teacher) {
+                // يعرض الأستاذ فقط السجلات التي قام بإدخالها بنفسه
+                $q->where('teacher_id', $teacher->id)
+                  ->orWhereNull('teacher_id');
+            })
             ->whereNotIn('source', ['parent_note', 'teacher_reply'])
             ->when(!empty($schoolSubjects), function($q) use ($schoolSubjects) {
                 $q->whereIn('subject', $schoolSubjects);
@@ -384,8 +402,7 @@ public function classScores(Request $request, $className)
         $dailyChanges = $query->join('children', 'daily_changes.child_id', '=', 'children.id')
             ->orderBy('children.name', 'asc')
             ->select('daily_changes.*')
-            ->paginate(10)
-            ->appends($request->all());
+            ->get();
 
         return view('teacher.class_scores', compact('className', 'dailyChanges', 'studentName', 'subject', 'date'));
     }
@@ -418,6 +435,11 @@ public function classScores(Request $request, $className)
         $schoolSubjects = $this->school()?->subjects ?? [];
 
         $query = DailyChange::whereIn('child_id', $studentIds)
+            // يعرض الأستاذ فقط السجلات (الملاحظات) التي قام بإدخالها بنفسه
+            ->where(function($q) use ($teacher) {
+                $q->where('teacher_id', $teacher->id)
+                  ->orWhereNull('teacher_id');
+            })
             ->when(!empty($schoolSubjects), function($q) use ($schoolSubjects) {
                 $q->where(function($sub) use ($schoolSubjects) {
                     $sub->whereNotIn('subject', $schoolSubjects)
@@ -440,8 +462,7 @@ public function classScores(Request $request, $className)
         $dailyChanges = $query->leftJoin('children', 'daily_changes.child_id', '=', 'children.id')
             ->orderBy('children.name', 'asc')
             ->select('daily_changes.*')
-            ->paginate(10)
-            ->appends($request->all());
+            ->get();
 
         return view('teacher.class_notes', compact('className', 'dailyChanges', 'studentName', 'subject', 'date'));
     }
@@ -460,7 +481,13 @@ public function classScores(Request $request, $className)
     $selectedDate = $request->input('date', date('Y-m-d'));
 
     // 2. استعلام السجلات اليومية المصفاة مع جلب بيانات الطالب (class & section)
-    $query = DailyChange::whereIn('child_id', $studentIds)->with('child');
+    // استثناء ملاحظات الأهل وردود المعلمة عليها: هذه الصفحة مخصصة للعلامات والملاحظات فقط
+    $query = DailyChange::whereIn('child_id', $studentIds)
+        ->with('child')
+        ->where(function ($q) {
+            $q->whereNull('source')
+              ->orWhere('source', 'teacher');
+        });
 
     if ($selectedDate) {
         $query->whereDate('recorded_at', $selectedDate);
@@ -520,10 +547,9 @@ public function classScores(Request $request, $className)
             $query->where('subject', 'like', '%' . $request->subject . '%');
         }
 
-        // جلب السجلات مرتبة بالتاريخ تنازلياً ومع الترقيم 10 بـ 10
+        // جلب جميع السجلات مرتبة بالتاريخ تنازلياً (العرض يتم 10 بـ 10 داخل الصفحة نفسها)
         $dailyChanges = $query->orderBy('recorded_at', 'desc')
-            ->paginate(10)
-            ->appends($request->all());
+            ->get();
 
         return view('teacher.student_records', compact('student', 'dailyChanges'));
     }
@@ -697,11 +723,13 @@ public function classScores(Request $request, $className)
     }
 public function parentNotes(Request $request)
 {
+    $this->checkTeacher();
+
     $teacher = auth()->user();
     $search  = $request->input('search');
 
-    // جلب ملاحظات الأهل (source = parent_note) من جدول daily_changes لطلاب المعلمة
-    $studentsWithNotes = \App\Models\DailyChange::where('source', 'parent_note')
+    // جلب الطلاب الذين لديهم ملاحظات (source = parent_note) مع دعم البحث
+    $query = \App\Models\DailyChange::where('source', 'parent_note')
         ->whereHas('child', function($q) use ($teacher, $search) {
             $q->whereHas('teachers', function($tq) use ($teacher) {
                 $tq->where('users.id', $teacher->id);
@@ -711,9 +739,13 @@ public function parentNotes(Request $request)
             });
         })
         ->with(['child.parent', 'replies.teacher'])
-        ->orderBy('recorded_at', 'desc')
-        ->get()
-        ->groupBy('child_id');
+        ->orderBy('recorded_at', 'desc');
+
+    // جلب جميع السجلات المطابقة لكي نقوم بتجميعها وتوزيعها بعرض 10 لكل دفعة بـ JS أو عبر الكอลيكشن
+    $allNotes = $query->get();
+    
+    // تجميع الملاحظات حسب الطالب (لكل طفل مجموعة ملاحظاته)
+    $studentsWithNotes = $allNotes->groupBy('child_id');
 
     return view('teacher.parent_notes', compact('studentsWithNotes', 'search'));
 }
@@ -759,7 +791,7 @@ public function replyToParentNote(Request $request, \App\Models\DailyChange $not
     if ($parentUser) {
         try {
             $childName = $note->child?->name ?? 'الطفل';
-            $parentUser->notify(new \App\Notifications\TeacherReplyNotification($childName, $request->note));
+            $parentUser->notify(new \App\Notifications\TeacherReplyNotification($childName, $request->note, $note->child_id));
         } catch (\Exception $e) {}
     }
 

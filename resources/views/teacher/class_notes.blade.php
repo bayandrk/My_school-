@@ -227,10 +227,8 @@
                         </thead>
                         <tbody>
                             @forelse($dailyChanges as $index => $change)
-                                <tr>
-                                    <td class="fw-bold text-muted">
-                                        {{ method_exists($dailyChanges, 'firstItem') ? $dailyChanges->firstItem() + $index : $index + 1 }}
-                                    </td>
+                                <tr class="record-row {{ $index >= 10 ? 'd-none' : '' }}" data-index="{{ $index + 1 }}">
+                                    <td class="fw-bold text-muted">{{ $index + 1 }}</td>
                                     <td class="text-start ps-4 fw-bold text-dark">
                                         {{ $change->child->name ?? 'غير محدد' }}
                                     </td>
@@ -311,13 +309,37 @@
                     </table>
                 </div>
 
-                <!-- أزرار التنقل بين الصفحات (Pagination) 10 بـ 10 -->
-                @if(method_exists($dailyChanges, 'hasPages') && $dailyChanges->hasPages())
-                    <div class="d-flex justify-content-center p-3 border-top">
-                        {{ $dailyChanges->links('pagination::bootstrap-5') }}
+                <!-- زر عرض المزيد (10 بـ 10 بدون تحديث الصفحة) -->
+                @if($dailyChanges->count() > 10)
+                    <div class="p-3 text-center bg-light border-top" id="load-more-records-container">
+                        <button type="button" onclick="loadMoreRecords()" class="btn btn-school-main btn-sm px-4 fw-bold">
+                            <i class="bi bi-chevron-down me-1"></i> عرض المزيد
+                        </button>
                     </div>
                 @endif
             </div>
         </div>
     </div>
 @endsection
+
+@push('scripts')
+<script>
+    // عرض الملاحظات 10 بـ 10 (نفس طريقة صفحة الصفوف)
+    let visibleRecords = 10;
+
+    function loadMoreRecords() {
+        visibleRecords += 10;
+
+        const rows = document.querySelectorAll('.record-row');
+        rows.forEach(row => {
+            const index = parseInt(row.getAttribute('data-index'));
+            if (index <= visibleRecords) row.classList.remove('d-none');
+        });
+
+        if (visibleRecords >= rows.length) {
+            const btnContainer = document.getElementById('load-more-records-container');
+            if (btnContainer) btnContainer.style.display = 'none';
+        }
+    }
+</script>
+@endpush

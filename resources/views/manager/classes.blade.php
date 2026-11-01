@@ -119,7 +119,6 @@
                         'section' => ['label' => 'الشعب', 'icon' => 'bi-diagram-3', 'items' => $school?->sections ?? []],
                         'subject' => ['label' => 'المواد', 'icon' => 'bi-book', 'items' => $school?->subjects ?? []],
                     ];
-                    // إذا لم يتم اختيار تبويب عبر الرابط، فلن يكون هناك تبويب مفتوح تلقائياً
                     $activeSettingType = request('setting_type');
                 @endphp
                 
@@ -139,7 +138,6 @@
                 @endforeach
             </div>
 
-            <!-- محتويات التبويبات (تظهر فقط عند النقر على التبويب الخاص بها) -->
             @foreach($settingGroups as $type => $group)
                 @php $isOpened = ($activeSettingType === $type); @endphp
                 <div class="collapse {{ $isOpened ? 'show' : '' }}" id="settingContent{{ $type }}" data-bs-parent=".card-body">
@@ -155,7 +153,7 @@
                                     $filterParam = $type === 'class' ? 'class_filter' : ($type === 'section' ? 'section_filter' : 'subject_filter');
                                 @endphp
                                 <div class="badge rounded-pill px-3 py-2 d-inline-flex align-items-center gap-2"
-                                      style="background-color: #ffffff; color: var(--primary-color); border: 1.5px solid color-mix(in srgb, var(--primary-color) 35%, transparent);">
+                                     style="background-color: #ffffff; color: var(--primary-color); border: 1.5px solid color-mix(in srgb, var(--primary-color) 35%, transparent);">
                                     <a href="{{ route('manager.classes', array_merge(request()->query(), [$filterParam => $item, 'setting_type' => $type])) }}" class="text-decoration-none fw-bold" style="color: inherit;">
                                         {{ $item }}
                                     </a>
@@ -178,7 +176,7 @@
                             @csrf
                             <input type="hidden" name="type" value="{{ $type }}">
                             <input type="text" name="value" class="form-control form-control-sm" placeholder="أضف {{ $group['label'] }}..." required maxlength="100">
-                            <button type="submit" class="btn btn-sm btn-school-main fw-bold px-3" title="إضافة">
+                            <button type="submit" class="btn btn-sm btn-school-dynamic fw-bold px-3" title="إضافة">
                                 <i class="bi bi-plus-lg"></i> إضافة
                             </button>
                         </form>
@@ -249,7 +247,7 @@
     @else
         @foreach($structuredClasses as $className => $sections)
             <div class="card card-custom mb-4">
-                <!-- 1. هيدر الصف (انقر للفتح/الإغلاق) -->
+                <!-- 1. هيدر الصف -->
                 <div class="class-header d-flex justify-content-between align-items-center flex-wrap gap-3"
                      data-bs-toggle="collapse" data-bs-target="#classCollapse{{ $loop->index }}"
                      aria-expanded="false" aria-controls="classCollapse{{ $loop->index }}">
@@ -264,26 +262,30 @@
                     </div>
                 </div>
 
-                <!-- 2. محتوى الصف (مغلق افتراضياً) -->
+                <!-- 2. محتوى الصف -->
                 <div class="collapse" id="classCollapse{{ $loop->index }}">
                     <div class="card-body p-3 bg-light">
                         @foreach($sections as $sectionName => $students)
+                            @php
+                                $sectionIndexId = $loop->parent->index . '_' . $loop->index;
+                                $totalStudentsCount = $students->count();
+                            @endphp
                             <div class="card border mb-3 shadow-none rounded-3 overflow-hidden">
-                                <!-- هيدر الشعبة (يحتوي على أزرار إجراءات الشعبة المنفصلة لمنع التداخل) -->
+                                <!-- هيدر الشعبة -->
                                 <div class="section-header d-flex justify-content-between align-items-center flex-wrap gap-2">
                                     <div class="section-header-clickable d-flex align-items-center gap-2 flex-grow-1"
-                                         data-bs-toggle="collapse" data-bs-target="#sectionCollapse{{ $loop->parent->index }}_{{ $loop->index }}"
-                                         aria-expanded="false" aria-controls="sectionCollapse{{ $loop->parent->index }}_{{ $loop->index }}">
+                                         data-bs-toggle="collapse" data-bs-target="#sectionCollapse{{ $sectionIndexId }}"
+                                         aria-expanded="false" aria-controls="sectionCollapse{{ $sectionIndexId }}">
                                         <i class="bi bi-chevron-down section-toggle-icon collapsed text-secondary" style="font-size: 0.75rem;"></i>
                                         <span class="fw-bold text-secondary">
                                             <i class="bi bi-diagram-3 me-1 text-primary"></i> الشعبة: {{ $sectionName }}
                                         </span>
                                         <span class="badge bg-secondary bg-opacity-15 text-dark rounded-pill px-2.5 py-1 small fw-bold">
-                                            {{ $students->count() }} طالب
+                                            {{ $totalStudentsCount }} طالب
                                         </span>
                                     </div>
 
-                                    <!-- أزرار المدير الخاصة بهذه الشعبة تحديداً مع منع انتشار الحدث -->
+                                    <!-- أزرار الإجراءات -->
                                     <div class="d-flex align-items-center gap-2 flex-wrap" onclick="event.stopPropagation();">
                                         <a href="{{ route('manager.class.scores', ['class_name' => $className . ' - الشعبة ' . $sectionName]) }}" class="btn btn-sm-custom btn-school-dynamic d-flex align-items-center gap-1">
                                             <i class="bi bi-award-fill"></i> عرض العلامات
@@ -297,8 +299,8 @@
                                     </div>
                                 </div>
 
-                                <!-- 3. جدول طلاب الشعبة (مغلق افتراضياً) -->
-                                <div class="collapse" id="sectionCollapse{{ $loop->parent->index }}_{{ $loop->index }}">
+                                <!-- 3. جدول طلاب الشعبة مع دعم 10 بـ 10 -->
+                                <div class="collapse" id="sectionCollapse{{ $sectionIndexId }}">
                                     <div class="card-body p-0 bg-white">
                                         <div class="table-responsive">
                                             <table class="table table-hover align-middle text-center mb-0 small">
@@ -317,8 +319,9 @@
                                                 </thead>
                                                 <tbody>
                                                     @foreach($students as $index => $student)
-                                                        <tr>
-                                                            <td class="fw-bold text-muted">{{ $index + 1 }}</td>
+                                                        @php $globalRowIndex = $index + 1; @endphp
+                                                        <tr class="student-row-{{ $sectionIndexId }}" data-index="{{ $globalRowIndex }}" style="{{ $globalRowIndex > 10 ? 'display: none;' : '' }}">
+                                                            <td class="fw-bold text-muted">{{ $globalRowIndex }}</td>
                                                             <td class="text-start ps-3 fw-bold text-dark">{{ $student->name }}</td>
                                                             <td class="text-secondary">{{ $student->age }} سنة</td>
                                                             <td>
@@ -368,6 +371,15 @@
                                                 </tbody>
                                             </table>
                                         </div>
+
+                                        <!-- زر عرض المزيد لكل شعبة على حدة بلون المدرسة المختار -->
+                                        @if($totalStudentsCount > 10)
+                                            <div class="text-center py-3 border-top" id="load-more-container-{{ $sectionIndexId }}">
+                                                <button type="button" onclick="loadMoreStudents('{{ $sectionIndexId }}', {{ $totalStudentsCount }})" class="btn btn-search-school btn-sm px-4 fw-bold rounded-3">
+                                                    عرض المزيد <i class="bi bi-chevron-down ms-1"></i>
+                                                </button>
+                                            </div>
+                                        @endif
                                     </div>
                                 </div>
                             </div>
@@ -382,6 +394,31 @@
 
 @push('scripts')
 <script>
+    // تتبع عدد الطلاب المرئيين لكل شعبة
+    const visibleStudentsMap = {};
+
+    function loadMoreStudents(sectionId, totalCount) {
+        if (!visibleStudentsMap[sectionId]) {
+            visibleStudentsMap[sectionId] = 10;
+        }
+        visibleStudentsMap[sectionId] += 10;
+
+        const rows = document.querySelectorAll(`.student-row-${sectionId}`);
+        rows.forEach(row => {
+            const index = parseInt(row.getAttribute('data-index'));
+            if (index <= visibleStudentsMap[sectionId]) {
+                row.style.display = '';
+            }
+        });
+
+        if (visibleStudentsMap[sectionId] >= totalCount) {
+            const btnContainer = document.getElementById(`load-more-container-${sectionId}`);
+            if (btnContainer) {
+                btnContainer.style.display = 'none';
+            }
+        }
+    }
+
     function switchSettingTab(type) {
         ['class', 'section', 'subject'].forEach(t => {
             if (t !== type) {

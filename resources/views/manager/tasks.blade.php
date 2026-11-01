@@ -101,7 +101,6 @@
     <div class="mb-4 d-flex justify-content-between align-items-center flex-wrap gap-2">
         <h5 class="fw-bold text-dark mb-0">صفحة المهام والطلبات المعلقة</h5>
         <div class="d-flex gap-2">
-           
             <a href="{{ route('manager.assignments') }}" class="btn fw-bold px-4 py-2 rounded-pill shadow-sm" style="background-color: var(--primary-color); color: var(--btn-text-color);">
                 <i class="bi bi-journal-code me-1"></i> إدارة تعيينات الأساتذة والصفوف
             </a>
@@ -115,7 +114,7 @@
                 <div>
                     <span class="text-muted small fw-bold d-block mb-1">طلبات الأساتذة المعلقة</span>
                     <h4 class="fw-bold text-dark mb-0">
-                        {{ isset($pendingTeachers) && method_exists($pendingTeachers, 'total') ? $pendingTeachers->total() : (isset($pendingTeachers) ? $pendingTeachers->count() : 0) }}
+                        {{ isset($pendingTeachers) ? $pendingTeachers->count() : 0 }}
                     </h4>
                 </div>
                 <div class="stat-icon">
@@ -138,7 +137,7 @@
         </div>
     </div>
 
-    <!-- جدول طلبات انضمام الأهل المعلقة -->
+    <!-- جدول طلبات انضمام الأهل المعلقة (5 لكل دفعة) -->
     <div class="row g-4 mb-4">
         <div class="col-12">
             <div class="card dashboard-card">
@@ -150,7 +149,7 @@
                         {{ isset($pendingJoinRequests) ? $pendingJoinRequests->count() : 0 }}
                     </span>
                 </div>
-                <div class="card-body p-3">
+                <div class="card-body p-3 parent-requests-container">
                     @if(empty($pendingJoinRequests) || $pendingJoinRequests->isEmpty())
                         <div class="text-center py-4">
                             <div class="stat-icon mx-auto mb-2" style="width: 48px; height: 48px; font-size: 1.4rem;">
@@ -173,7 +172,7 @@
                                 </thead>
                                 <tbody>
                                     @foreach($pendingJoinRequests as $index => $joinReq)
-                                        <tr>
+                                        <tr class="parent-req-row {{ $index >= 5 ? 'd-none' : '' }}">
                                             <td class="fw-bold text-muted">{{ $index + 1 }}</td>
                                             <td class="text-start ps-3 fw-bold text-dark">{{ $joinReq->parent->name ?? '-' }}</td>
                                             <td class="text-secondary">{{ $joinReq->parent->email ?? '-' }}</td>
@@ -203,13 +202,22 @@
                                 </tbody>
                             </table>
                         </div>
+
+                        <!-- زر عرض المزيد للأسطر الخاصة بالأهل -->
+                        @if($pendingJoinRequests->count() > 5)
+                            <div class="text-center mt-3 pt-2 border-top load-more-parent-container">
+                                <button type="button" class="btn btn-sm btn-primary px-4 fw-bold rounded-pill shadow-sm" id="loadMoreParentBtn" style="background-color: var(--primary-color); border-color: var(--primary-color);">
+                                    عرض المزيد
+                                </button>
+                            </div>
+                        @endif
                     @endif
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- جدول طلبات الأساتذة المعلقة -->
+    <!-- جدول طلبات الأساتذة المعلقة (5 لكل دفعة) -->
     <div class="row g-4">
         <div class="col-12">
             <div class="card dashboard-card">
@@ -218,10 +226,10 @@
                         <i class="bi bi-person-plus-fill text-primary"></i> طلبات انضمام الأساتذة المعلقة
                     </span>
                     <span class="badge bg-primary bg-opacity-10 text-primary px-3 py-1.5 rounded-pill small fw-bold">
-                        {{ isset($pendingTeachers) && method_exists($pendingTeachers, 'total') ? $pendingTeachers->total() : (isset($pendingTeachers) ? $pendingTeachers->count() : 0) }}
+                        {{ isset($pendingTeachers) ? $pendingTeachers->count() : 0 }}
                     </span>
                 </div>
-                <div class="card-body p-3">
+                <div class="card-body p-3 teacher-requests-container">
                     @if(empty($pendingTeachers) || $pendingTeachers->isEmpty())
                         <div class="text-center py-4">
                             <div class="stat-icon mx-auto mb-2" style="width: 48px; height: 48px; font-size: 1.4rem;">
@@ -244,10 +252,8 @@
                                 </thead>
                                 <tbody>
                                     @foreach($pendingTeachers as $index => $teacher)
-                                        <tr>
-                                            <td class="fw-bold text-muted">
-                                                {{ method_exists($pendingTeachers, 'firstItem') ? $pendingTeachers->firstItem() + $index : $index + 1 }}
-                                            </td>
+                                        <tr class="teacher-req-row {{ $index >= 5 ? 'd-none' : '' }}">
+                                            <td class="fw-bold text-muted">{{ $index + 1 }}</td>
                                             <td class="text-start ps-3 fw-bold text-dark">{{ $teacher->name }}</td>
                                             <td class="text-secondary">{{ $teacher->username }}</td>
                                             <td class="text-secondary">{{ $teacher->email }}</td>
@@ -277,10 +283,12 @@
                             </table>
                         </div>
 
-                        <!-- الترقيم (Pagination) -->
-                        @if(method_exists($pendingTeachers, 'hasPages') && $pendingTeachers->hasPages())
-                            <div class="d-flex justify-content-center p-3 border-top">
-                                {{ $pendingTeachers->appends(['pending_page' => $pendingTeachers->currentPage()])->links('pagination::bootstrap-5') }}
+                        <!-- زر عرض المزيد للأسطر الخاصة بالأساتذة -->
+                        @if($pendingTeachers->count() > 5)
+                            <div class="text-center mt-3 pt-2 border-top load-more-teacher-container">
+                                <button type="button" class="btn btn-sm btn-primary px-4 fw-bold rounded-pill shadow-sm" id="loadMoreTeacherBtn" style="background-color: var(--primary-color); border-color: var(--primary-color);">
+                                    عرض المزيد
+                                </button>
                             </div>
                         @endif
                     @endif
@@ -290,3 +298,49 @@
     </div>
 
 @endsection
+
+@push('scripts')
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // 1. زر "عرض المزيد" لطلبات الأهل
+        const loadMoreParentBtn = document.getElementById('loadMoreParentBtn');
+        if (loadMoreParentBtn) {
+            loadMoreParentBtn.addEventListener('click', function () {
+                const hiddenRows = document.querySelectorAll('.parent-req-row.d-none');
+                let shown = 0;
+                hiddenRows.forEach(row => {
+                    if (shown < 5) {
+                        row.classList.remove('d-none');
+                        shown++;
+                    }
+                });
+
+                if (document.querySelectorAll('.parent-req-row.d-none').length === 0) {
+                    const container = document.querySelector('.load-more-parent-container');
+                    if (container) container.style.display = 'none';
+                }
+            });
+        }
+
+        // 2. زر "عرض المزيد" لطلبات الأساتذة
+        const loadMoreTeacherBtn = document.getElementById('loadMoreTeacherBtn');
+        if (loadMoreTeacherBtn) {
+            loadMoreTeacherBtn.addEventListener('click', function () {
+                const hiddenRows = document.querySelectorAll('.teacher-req-row.d-none');
+                let shown = 0;
+                hiddenRows.forEach(row => {
+                    if (shown < 5) {
+                        row.classList.remove('d-none');
+                        shown++;
+                    }
+                });
+
+                if (document.querySelectorAll('.teacher-req-row.d-none').length === 0) {
+                    const container = document.querySelector('.load-more-teacher-container');
+                    if (container) container.style.display = 'none';
+                }
+            });
+        }
+    });
+</script>
+@endpush

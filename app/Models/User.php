@@ -140,7 +140,8 @@ public function school()
  */
 public function schools()
 {
-    return $this->belongsToMany(School::class, 'school_parent', 'parent_id', 'school_id');
+    return $this->belongsToMany(School::class, 'school_parent', 'parent_id', 'school_id')
+        ->wherePivot('status', \App\Models\SchoolParent::STATUS_APPROVED);
 }
 
 /** هل ولي الأمر مرتبط بهذه المدرسة؟ (يُستخدم للتحقق من الوصول) */
@@ -148,7 +149,10 @@ public function belongsToSchoolById(?int $schoolId): bool
 {
     return $schoolId !== null
         && $this->role === self::ROLE_PARENT
-        && $this->schools()->where('schools.id', $schoolId)->exists();
+        && \App\Models\SchoolParent::where('parent_id', $this->id)
+            ->where('school_id', $schoolId)
+            ->where('status', \App\Models\SchoolParent::STATUS_APPROVED)
+            ->exists();
 }
     /**
      * The attributes that should be hidden for serialization.

@@ -91,29 +91,37 @@ public function dashboard(Request $request)
     }
 
     // صفحة المهام والطلبات المعلقة الخاصة بالمدير
-    public function tasks(Request $request)
-    {
-        $this->checkManager();
-        $school = $this->school();
+   public function tasks(Request $request)
+{
+    $this->checkManager();
+    $school = $this->school();
 
-        // طلبات الأساتذة المعلقة
+    // طلبات الأساتذة المعلقة (تم تحويلها إلى get لتتوافق مع العرض التدريجي 5 بـ 5)
+    $pendingTeachers = collect();
+    if (method_exists($this, 'teachersQuery')) {
         $pendingTeachers = $this->teachersQuery()
-            ->status(User::STATUS_PENDING)
+            ->status(\App\Models\User::STATUS_PENDING)
             ->latest()
-            ->paginate(10, ['*'], 'pending_page');
-
-        // طلبات انضمام الأهل المعلقة
-        $pendingJoinRequests = collect();
-        if ($school) {
-            $pendingJoinRequests = \App\Models\SchoolJoinRequest::where('school_id', $school->id)
-                ->where('status', 'pending')
-                ->with(['parent', 'school'])
-                ->latest()
-                ->get();
-        }
-
-        return view('manager.tasks', compact('pendingTeachers', 'pendingJoinRequests'));
+            ->get();
+    } else {
+        $pendingTeachers = \App\Models\User::where('role', 'teacher')
+            ->where('status', 'pending')
+            ->latest()
+            ->get();
     }
+
+    // طلبات انضمام الأهل المعلقة
+    $pendingJoinRequests = collect();
+    if ($school) {
+        $pendingJoinRequests = \App\Models\SchoolParent::pending()
+            ->where('school_id', $school->id)
+            ->with(['parent', 'school'])
+            ->latest()
+            ->get();
+    }
+
+    return view('manager.tasks', compact('pendingTeachers', 'pendingJoinRequests'));
+}
 
     // دالة إلغاء التعيين المتوافقة مع دالة التعيين
     public function unassignTeacherClass(Request $request)
@@ -123,21 +131,26 @@ public function dashboard(Request $request)
         $request->validate([
             'teacher_id' => 'required|exists:users,id',
             'class_name' => 'required|string',
+            'section'    => 'nullable|string|max:100',
         ]);
 
         $children = $this->childrenQuery()
             ->where('class', $request->class_name)
+            ->when($request->filled('section'), fn ($q) => $q->where('section', $request->section))
+            ->when(!$request->filled('section'), fn ($q) => $q->where(fn ($qq) => $qq->whereNull('section')->orWhere('section', '')))
             ->get();
 
         if ($children->isEmpty()) {
-            return back()->with('error', 'لم يتم العثور على طلاب في هذا الصف.');
+            return back()->with('error', 'لم يتم العثور على طلاب في هذا الصف' . ($request->filled('section') ? ' والشعبة (' . $request->section . ')' : '') . '.');
         }
 
         foreach ($children as $child) {
             $child->teachers()->detach($request->teacher_id);
         }
 
-        return redirect()->route('manager.assignments')->with('success', 'تم إلغاء تعيين الأستاذ عن صف (' . $request->class_name . ') بنجاح.');
+        $target = $request->class_name . ($request->filled('section') ? ' - الشعبة ' . $request->section : '');
+
+        return redirect()->route('manager.assignments')->with('success', 'تم إلغاء تعيين الأستاذ عن (' . $target . ') بنجاح.');
     }
 
     public function profile()
@@ -278,14 +291,14 @@ public function dashboard(Request $request)
             ->status(User::STATUS_APPROVED)
             ->get();
 
-        // قائمة الصفوف
+        // قائمة الصفوف (بدون الشعبة — الشعبة تُختار من القائمة المنسدلة المنفصلة)
         $classesList = $this->childrenQuery()
             ->pluck('class')
             ->unique()
             ->sort()
             ->values();
 
-        // جلب التعيينات الحالية وتجميعها حسب الصف
+        // جلب التعيينات الحالية وتجميعها حسب الصف والشعبة
         $currentAssignments = collect();
 
         try {
@@ -297,25 +310,41 @@ public function dashboard(Request $request)
             $grouped = [];
 
             foreach ($children as $child) {
-                $grouped[$child->class] ??= collect();
+                $key = $child->class . '||' . ($child->section ?? '');
+                $grouped[$key] ??= collect();
                 foreach ($child->teachers as $teacher) {
-                    $grouped[$child->class]->push($teacher);
+                    $grouped[$key]->push($teacher);
                 }
             }
 
-            foreach ($grouped as $className => $teachersColl) {
+            foreach ($grouped as $key => $teachersColl) {
+                [$className, $sectionName] = explode('||', $key);
                 $currentAssignments->push((object)[
-                    'class_name' => $className,
-                    'teachers'   => $teachersColl->unique('id')->values(),
+                    'class_name'   => $className,
+                    'section_name' => $sectionName,
+                    'teachers'     => $teachersColl->unique('id')->values(),
                 ]);
             }
 
-            $currentAssignments = $currentAssignments->sortBy('class_name')->values();
+            $currentAssignments = $currentAssignments->sortBy(fn ($a) => $a->class_name . ($a->section_name ?? ''))->values();
+
+            // تجميع هرمي: الصف ← الشعبة (لعرض الشعب داخل تفاصيل الصف)
+            $groupedByClass = $currentAssignments->groupBy('class_name')->map(function ($sections, $cls) {
+                return (object)[
+                    'class_name' => $cls,
+                    'sections'   => $sections,
+                    'teachers'   => $sections->flatMap->teachers->unique('id')->values(),
+                ];
+            })->values();
         } catch (\Exception $e) {
             $currentAssignments = collect();
+            $groupedByClass = collect();
         }
 
-        return view('manager.assignments', compact('approvedTeachers', 'classesList', 'currentAssignments'));
+        // قوائم المدرسة (الشعب)
+        $sectionsList = $this->school()?->sections ?? [];
+
+        return view('manager.assignments', compact('approvedTeachers', 'classesList', 'sectionsList', 'currentAssignments', 'groupedByClass'));
     }
 
     // دالة تنفيذ تعيين الأستاذ لصف دراسي
@@ -326,6 +355,7 @@ public function dashboard(Request $request)
         $request->validate([
             'teacher_id' => 'required|exists:users,id',
             'class_name' => 'required|string',
+            'section'    => 'nullable|string|max:100',
         ]);
 
         // التأكد من أن الأستاذ يتبع نفس مدرسة المدير (school_id)
@@ -337,28 +367,32 @@ public function dashboard(Request $request)
             return back()->with('error', 'الأستاذ المحدد غير موجود أو لا ينتمي إلى مدرستك.');
         }
 
-        // جلب جميع طلاب مدرسة المدير في الصف المحدد
+        // جلب جميع طلاب مدرسة المدير في الصف والشعبة المحددة
         $children = $this->childrenQuery()
             ->where('class', $request->class_name)
+            ->when($request->filled('section'), fn ($q) => $q->where('section', $request->section))
+            ->when(!$request->filled('section'), fn ($q) => $q->where(fn ($qq) => $qq->whereNull('section')->orWhere('section', '')))
             ->get();
 
         if ($children->isEmpty()) {
-            return back()->with('error', 'لا يوجد طلاب في هذا الصف ليتم ربطهم بالأستاذ.');
+            return back()->with('error', 'لا يوجد طلاب في هذا الصف' . ($request->filled('section') ? ' والشعبة (' . $request->section . ')' : '') . ' ليتم ربطهم بالأستاذ.');
         }
 
-        // ربط جميع طلاب الصف بهذا الأستاذ بدون تكرار
+        // ربط جميع طلاب الصف/الشعبة بهذا الأستاذ بدون تكرار
         foreach ($children as $child) {
             $child->teachers()->syncWithoutDetaching([$teacher->id]);
         }
 
         // إرسال إشعار للأستاذ
+        $target = $request->class_name . ($request->filled('section') ? ' - الشعبة ' . $request->section : '');
+
         try {
-            $teacher->notify(new TeacherAssignedNotification($request->class_name));
+            $teacher->notify(new TeacherAssignedNotification($target));
         } catch (\Exception $e) {
             // تخطي خطأ الإشعار لضمان عدم توقف العملية
         }
 
-        return redirect()->route('manager.assignments')->with('success', 'تم تعيين الأستاذ لصف (' . $request->class_name . ') بنجاح.');
+        return redirect()->route('manager.assignments')->with('success', 'تم تعيين الأستاذ لـ (' . $target . ') بنجاح.');
     }
 
     // صفحة الصفوف الشاملة
@@ -501,9 +535,9 @@ public function dashboard(Request $request)
             $query->where('subject', 'like', '%' . $request->subject . '%');
         }
 
+        // جلب جميع السجلات (بدون ترقيم صفحات — العرض يتم 10 بـ 10 داخل الصفحة نفسها)
         $dailyChanges = $query->orderBy('recorded_at', 'desc')
-            ->paginate(10)
-            ->appends($request->all());
+            ->get();
 
         return view('manager.student_records', compact('student', 'dailyChanges'))
             ->with('school', $this->school());
@@ -854,7 +888,7 @@ public function dashboard(Request $request)
     }
 
     /** قبول طلب انضمام ولي أمر */
-    public function approveJoinRequest(\App\Models\SchoolJoinRequest $joinRequest)
+    public function approveJoinRequest(\App\Models\SchoolParent $joinRequest)
     {
         $this->checkManager();
         $school = $this->school();
@@ -869,8 +903,6 @@ public function dashboard(Request $request)
         // قبول الطلب + إضافة المدرسة فعلياً لولي الأمر
         $joinRequest->update([
             'status'       => 'approved',
-            'processed_by' => auth()->id(),
-            'processed_at' => now(),
         ]);
 
         $joinRequest->parent->schools()->syncWithoutDetaching([$school->id]);
@@ -892,7 +924,7 @@ public function dashboard(Request $request)
 }
 
     /** رفض طلب انضمام ولي أمر */
-    public function rejectJoinRequest(\App\Models\SchoolJoinRequest $joinRequest)
+    public function rejectJoinRequest(\App\Models\SchoolParent $joinRequest)
     {
         $this->checkManager();
         $school = $this->school();
@@ -906,8 +938,6 @@ public function dashboard(Request $request)
 
         $joinRequest->update([
             'status'       => 'rejected',
-            'processed_by' => auth()->id(),
-            'processed_at' => now(),
         ]);
 
         return back()->with('success', 'تم رفض الطلب.');

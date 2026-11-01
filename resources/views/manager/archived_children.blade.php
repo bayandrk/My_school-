@@ -43,8 +43,9 @@
                         </thead>
                         <tbody>
                             @foreach($children as $index => $child)
-                                <tr>
-                                    <td class="fw-bold text-muted">{{ $index + 1 }}</td>
+                                @php $rowNum = $index + 1; @endphp
+                                <tr class="archived-child-row" data-index="{{ $rowNum }}" style="{{ $rowNum > 10 ? 'display: none;' : '' }}">
+                                    <td class="fw-bold text-muted">{{ $rowNum }}</td>
                                     <td class="text-start ps-3 fw-bold text-dark">{{ $child->name }}</td>
                                     <td><span class="badge bg-secondary bg-opacity-10 text-secondary border px-2 py-1">{{ $child->class }}</span></td>
                                     <td>{{ $child->age }} سنة</td>
@@ -62,9 +63,39 @@
                             @endforeach
                         </tbody>
                     </table>
+
+                    @if($children->count() > 10)
+                        <div class="text-center py-3 border-top" id="load-more-archived-container">
+                            <button type="button" onclick="loadMoreArchived()" class="btn btn-primary btn-sm px-4 fw-bold rounded-3">
+                                عرض المزيد <i class="bi bi-chevron-down ms-1"></i>
+                            </button>
+                        </div>
+                    @endif
                 </div>
             @endif
         </div>
     </div>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+    // عرض الطلاب المؤرشفين 10 بـ 10 (نفس طريقة صفحة الصفوف)
+    let visibleArchived = 10;
+
+    function loadMoreArchived() {
+        visibleArchived += 10;
+
+        const rows = document.querySelectorAll('.archived-child-row');
+        rows.forEach(row => {
+            const index = parseInt(row.getAttribute('data-index'));
+            if (index <= visibleArchived) row.style.display = '';
+        });
+
+        if (visibleArchived >= rows.length) {
+            const btnContainer = document.getElementById('load-more-archived-container');
+            if (btnContainer) btnContainer.style.display = 'none';
+        }
+    }
+</script>
+@endpush

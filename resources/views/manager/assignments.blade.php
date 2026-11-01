@@ -164,7 +164,7 @@
                         <i class="bi bi-journal-code text-primary fs-5"></i> لوحة تعيين الأساتذة والصفوف
                     </span>
                     <span class="badge bg-primary bg-opacity-10 text-primary px-3 py-1.5 rounded-pill small fw-bold">
-                        {{ isset($currentAssignments) ? $currentAssignments->count() : 0 }} صف له تعيينات
+                        {{ isset($groupedByClass) ? $groupedByClass->count() : 0 }} صف له تعيينات
                     </span>
                 </div>
                 <div class="card-body p-4">
@@ -195,7 +195,7 @@
                                     </div>
                                 </div>
 
-                                <div class="col-md-5">
+                                <div class="col-md-3">
                                     <label class="form-label fw-bold small text-secondary mb-1">الصف الدراسي:</label>
                                     <div class="combo-dropdown-wrapper" id="classComboWrapper">
                                         <input type="text" id="classInputDisplay" class="form-control form-control-custom combo-input-box bg-white" placeholder="-- اختر الصف أو ابحث عن اسمه --" autocomplete="off" required>
@@ -214,6 +214,18 @@
                                     </div>
                                 </div>
 
+                                <div class="col-md-2">
+                                    <label class="form-label fw-bold small text-secondary mb-1">الشعبة:</label>
+                                    <select name="section" id="sectionSelect" class="form-select form-control-custom bg-white">
+                                        <option value="">-- بدون شعبة --</option>
+                                        @isset($sectionsList)
+                                            @foreach($sectionsList as $sec)
+                                                <option value="{{ $sec }}">{{ $sec }}</option>
+                                            @endforeach
+                                        @endisset
+                                    </select>
+                                </div>
+
                                 <div class="col-md-2 mt-auto">
                                     <button type="submit" class="btn btn-assign-custom w-100 py-2 d-flex align-items-center justify-content-center gap-1">
                                         <i class="bi bi-check-lg fs-5"></i> تعيين
@@ -226,27 +238,33 @@
                     <!-- جدول التعيينات الحالية -->
                     <div>
                         <h6 class="fw-bold text-dark mb-3 d-flex align-items-center gap-2">
-                            <i class="bi bi-list-check text-primary"></i> التعيينات الحالية (اضغط على التفاصيل لعرض الأساتذة)
+                            <i class="bi bi-list-check text-primary"></i> التعيينات الحالية (اضغط على التفاصيل لعرض الشعب والأساتذة)
                         </h6>
 
-                        @if(isset($currentAssignments) && $currentAssignments->isNotEmpty())
+                        @if(isset($groupedByClass) && $groupedByClass->isNotEmpty())
                             <div class="table-responsive border rounded-3 shadow-sm">
                                 <table class="table table-hover align-middle mb-0 text-center small bg-white">
                                     <thead class="table-light text-secondary">
                                         <tr>
                                             <th class="py-3" style="width: 60px;">#</th>
                                             <th class="py-3 text-start ps-4">الصف الدراسي</th>
+                                            <th class="py-3">عدد الشعب</th>
                                             <th class="py-3">عدد الأساتذة المعينين</th>
                                             <th class="py-3" style="width: 180px;">الإجراء</th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        @foreach($currentAssignments as $index => $assignment)
+                                        @foreach($groupedByClass as $index => $assignment)
                                             <tr>
                                                 <td class="fw-bold text-muted">{{ $index + 1 }}</td>
                                                 <td class="text-start ps-4">
                                                     <span class="badge bg-primary bg-opacity-10 text-primary px-3 py-2 rounded-pill fw-bold fs-6 border border-primary border-opacity-10">
                                                         <i class="bi bi-book-fill me-1"></i> {{ $assignment->class_name }}
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <span class="badge bg-info bg-opacity-10 text-info-emphasis px-3 py-1 rounded-pill fw-bold border border-info border-opacity-10">
+                                                        <i class="bi bi-collection me-1"></i> {{ $assignment->sections->count() }} شعبة
                                                     </span>
                                                 </td>
                                                 <td>
@@ -261,28 +279,56 @@
                                                 </td>
                                             </tr>
                                             <tr class="bg-light">
-                                                <td colspan="4" class="p-0 border-0">
+                                                <td colspan="5" class="p-0 border-0">
                                                     <div class="collapse px-4 py-3" id="teachersDetails{{ $index }}">
                                                         <div class="card card-body bg-white border shadow-sm rounded-3">
                                                             <h6 class="fw-bold text-secondary mb-3 small text-start">
-                                                                <i class="bi bi-people-fill me-1"></i> الأساتذة المعينون في ({{ $assignment->class_name }}):
+                                                                <i class="bi bi-people-fill me-1"></i> شعب الصف ({{ $assignment->class_name }}) والأساتذة المعينون:
                                                             </h6>
-                                                            <div class="d-flex flex-column gap-2">
-                                                                @foreach($assignment->teachers as $teacher)
-                                                                    <div class="d-flex align-items-center justify-content-between p-2 rounded-3 bg-light border">
-                                                                        <div class="text-start">
-                                                                            <span class="fw-bold text-dark">{{ $teacher->name }}</span>
-                                                                            <small class="text-muted d-block" style="font-size: 0.75rem;">{{ $teacher->email }}</small>
-                                                                        </div>
-                                                                        <div>
-                                                                            <form action="{{ route('manager.unassign-teacher-class') }}" method="POST" class="m-0">
-                                                                                @csrf
-                                                                                <input type="hidden" name="teacher_id" value="{{ $teacher->id }}">
-                                                                                <input type="hidden" name="class_name" value="{{ $assignment->class_name }}">
-                                                                                <button type="submit" class="btn btn-action-reject py-1 px-2.5 small" onclick="return confirm('هل أنت متأكد من إلغاء تعيين الأستاذ {{ $teacher->name }} عن صف {{ $assignment->class_name }}؟')">
-                                                                                    <i class="bi bi-x-circle-fill me-1"></i> إلغاء التعيين
-                                                                                </button>
-                                                                            </form>
+                                                            <div class="accordion accordion-flush" id="sectionsAcc{{ $index }}">
+                                                                @foreach($assignment->sections as $secIndex => $section)
+                                                                    <div class="accordion-item border rounded-3 mb-2 bg-light">
+                                                                        <h2 class="accordion-header" id="secHead{{ $index }}_{{ $secIndex }}">
+                                                                            <button class="accordion-button {{ $secIndex === 0 ? '' : 'collapsed' }} bg-white rounded-3 fw-bold small text-dark" type="button" data-bs-toggle="collapse" data-bs-target="#secBody{{ $index }}_{{ $secIndex }}" aria-expanded="{{ $secIndex === 0 ? 'true' : 'false' }}" aria-controls="secBody{{ $index }}_{{ $secIndex }}">
+                                                                                <i class="bi bi-collection me-2 text-info"></i>
+                                                                                الشعبة: {{ $section->section_name ? $section->section_name : 'عامة' }}
+                                                                                <span class="badge bg-secondary bg-opacity-10 text-dark px-2 py-1 rounded-pill small ms-2">{{ $section->teachers->count() }} أستاذ</span>
+                                                                            </button>
+                                                                        </h2>
+                                                                        <div id="secBody{{ $index }}_{{ $secIndex }}" class="accordion-collapse collapse {{ $secIndex === 0 ? 'show' : '' }}" aria-labelledby="secHead{{ $index }}_{{ $secIndex }}" data-bs-parent="#sectionsAcc{{ $index }}">
+                                                                            <div class="accordion-body">
+                                                                                <div class="d-flex flex-column gap-2">
+                                                                                    @php $teachersCount = $section->teachers->count(); @endphp
+                                                                                    @foreach($section->teachers as $tIndex => $teacher)
+                                                                                        @php $teacherRowNum = $tIndex + 1; @endphp
+                                                                                        <div class="assignment-teacher-row-{{ $index }}_{{ $secIndex }} d-flex align-items-center justify-content-between p-2 rounded-3 bg-light border" data-index="{{ $teacherRowNum }}" style="{{ $teacherRowNum > 10 ? 'display: none;' : '' }}">
+                                                                                            <div class="text-start">
+                                                                                                <span class="fw-bold text-dark">{{ $teacher->name }}</span>
+                                                                                                <small class="text-muted d-block" style="font-size: 0.75rem;">{{ $teacher->email }}</small>
+                                                                                            </div>
+                                                                                            <div>
+                                                                                                <form action="{{ route('manager.unassign-teacher-class') }}" method="POST" class="m-0">
+                                                                                                    @csrf
+                                                                                                    <input type="hidden" name="teacher_id" value="{{ $teacher->id }}">
+                                                                                                    <input type="hidden" name="class_name" value="{{ $section->class_name }}">
+                                                                                                    <input type="hidden" name="section" value="{{ $section->section_name }}">
+                                                                                                    <button type="submit" class="btn btn-action-reject py-1 px-2.5 small" onclick="return confirm('هل أنت متأكد من إلغاء تعيين الأستاذ {{ $teacher->name }} عن {{ $section->class_name }}{{ $section->section_name ? ' - الشعبة ' . $section->section_name : '' }}؟')">
+                                                                                                        <i class="bi bi-x-circle-fill me-1"></i> إلغاء التعيين
+                                                                                                    </button>
+                                                                                                </form>
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    @endforeach
+
+                                                                                    @if($teachersCount > 10)
+                                                                                        <div class="text-center py-2 border-top" id="load-more-assignment-{{ $index }}_{{ $secIndex }}">
+                                                                                            <button type="button" onclick="loadMoreAssignmentTeachers('{{ $index }}_{{ $secIndex }}', {{ $teachersCount }})" class="btn btn-details-custom btn-sm px-4 fw-bold rounded-3">
+                                                                                                عرض المزيد <i class="bi bi-chevron-down ms-1"></i>
+                                                                                            </button>
+                                                                                        </div>
+                                                                                    @endif
+                                                                                </div>
+                                                                            </div>
                                                                         </div>
                                                                     </div>
                                                                 @endforeach
@@ -373,5 +419,30 @@
             }
         );
     });
+
+    // عرض الأساتذة 10 بـ 10 داخل كل شعبة (نفس طريقة صفحة الصفوف)
+    const visibleAssignmentTeachersMap = {};
+
+    function loadMoreAssignmentTeachers(sectionId, totalCount) {
+        if (!visibleAssignmentTeachersMap[sectionId]) {
+            visibleAssignmentTeachersMap[sectionId] = 10;
+        }
+        visibleAssignmentTeachersMap[sectionId] += 10;
+
+        const rows = document.querySelectorAll(`.assignment-teacher-row-${sectionId}`);
+        rows.forEach(row => {
+            const index = parseInt(row.getAttribute('data-index'));
+            if (index <= visibleAssignmentTeachersMap[sectionId]) {
+                row.style.display = '';
+            }
+        });
+
+        if (visibleAssignmentTeachersMap[sectionId] >= totalCount) {
+            const btnContainer = document.getElementById(`load-more-assignment-${sectionId}`);
+            if (btnContainer) {
+                btnContainer.style.display = 'none';
+            }
+        }
+    }
 </script>
 @endpush

@@ -47,8 +47,9 @@
                             </thead>
                             <tbody>
                                 @foreach($deactivatedManagers as $index => $manager)
-                                    <tr>
-                                        <td class="fw-bold text-muted">{{ $index + 1 }}</td>
+                                    @php $rowNum = $index + 1; @endphp
+                                    <tr class="deactivated-manager-row {{ $rowNum > 10 ? 'd-none' : '' }}" data-index="{{ $rowNum }}">
+                                        <td class="fw-bold text-muted">{{ $rowNum }}</td>
                                         <td class="text-start ps-4 fw-bold text-dark">{{ $manager->name }}</td>
                                         <td class="text-secondary">{{ $manager->username }}</td>
                                         <td class="text-secondary">{{ $manager->email }}</td>
@@ -79,9 +80,40 @@
                             </tbody>
                         </table>
                     </div>
+
+                    <!-- زر عرض المزيد (10 بـ 10 بدون تحديث الصفحة) -->
+                    @if($deactivatedManagers->count() > 10)
+                        <div class="p-3 text-center border-top" id="load-more-deactivated-container">
+                            <button type="button" onclick="loadMoreDeactivated()" class="btn btn-primary btn-sm px-4 fw-bold">
+                                <i class="bi bi-chevron-down me-1"></i> عرض المزيد
+                            </button>
+                        </div>
+                    @endif
                 @endif
             </div>
         </div>
 
     </div>
 @endsection
+
+@push('scripts')
+<script>
+    // عرض المدراء غير المفعلين 10 بـ 10 (نفس طريقة عرض المزيد في الصفوف)
+    let visibleDeactivated = 10;
+
+    function loadMoreDeactivated() {
+        visibleDeactivated += 10;
+
+        const rows = document.querySelectorAll('.deactivated-manager-row');
+        rows.forEach(row => {
+            const index = parseInt(row.getAttribute('data-index'));
+            if (index <= visibleDeactivated) row.classList.remove('d-none');
+        });
+
+        if (visibleDeactivated >= rows.length) {
+            const btnContainer = document.getElementById('load-more-deactivated-container');
+            if (btnContainer) btnContainer.style.display = 'none';
+        }
+    }
+</script>
+@endpush

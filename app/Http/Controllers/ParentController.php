@@ -56,7 +56,7 @@ class ParentController extends Controller
             ->get();
 
         // طلباتي المعلقة والسابقة
-        $myRequests = \App\Models\SchoolJoinRequest::with('school')
+        $myRequests = \App\Models\SchoolParent::with('school')
             ->where('parent_id', $parent->id)
             ->latest()
             ->get();
@@ -81,7 +81,7 @@ class ParentController extends Controller
         }
 
         // إذا عندها طلب معلق على نفس المدرسة
-        $pending = \App\Models\SchoolJoinRequest::where('parent_id', $parent->id)
+        $pending = \App\Models\SchoolParent::where('parent_id', $parent->id)
             ->where('school_id', $request->school_id)
             ->where('status', 'pending')
             ->first();
@@ -89,12 +89,16 @@ class ParentController extends Controller
             return back()->with('error', 'عندك طلب معلق لهذه المدرسة بالفعل — بانتظار موافقة المدير.');
         }
 
-        // إنشاء الطلب (معلق حتى يقبله المدير)
-        $joinRequest = \App\Models\SchoolJoinRequest::create([
-            'parent_id' => $parent->id,
-            'school_id' => $request->school_id,
-            'status'    => 'pending',
-        ]);
+        // إنشاء الطلب أو إعادة الطلب المرفوض إلى معلق (لوجود قيد فريد على parent_id + school_id)
+        $joinRequest = \App\Models\SchoolParent::updateOrCreate(
+            [
+                'parent_id' => $parent->id,
+                'school_id' => $request->school_id,
+            ],
+            [
+                'status' => \App\Models\SchoolParent::STATUS_PENDING,
+            ]
+        );
 
         // إرسال إشعار لمدير المدرسة
         $school = \App\Models\School::find($request->school_id);
@@ -159,7 +163,72 @@ class ParentController extends Controller
         $initialPreviousRecords = (clone $previousRecordsQuery)->take(10)->get();
         $totalPreviousCount = (clone $previousRecordsQuery)->count();
 
-        return view('parent.child_show', compact('child', 'todayRecords', 'initialPreviousRecords', 'totalPreviousCount'));
+        // جلب السجلات وتجميعها بحيث يكون المحور الأساسي (Labels) هو نوع الاختبار/الملاحظة (مثل: مذاكرة أولى، مذاكرة تانية)
+        // و(Datasets) تمثل المواد الدراسية المختلفة
+        $records = $child->dailyChanges()
+            ->where('source', '!=', 'parent_note')
+            ->where('source', '!=', 'teacher_reply')
+            ->whereNull('parent_id')
+            ->whereNotNull('score')
+            ->get();
+
+        $categoriesSet = [];
+        $subjectsSet = [];
+        $matrix = []; // $matrix[subject][category] = [scores]
+
+        foreach ($records as $record) {
+            $noteText = trim($record->note ?? '');
+            $subject = trim($record->subject ?? 'مادة عامة');
+            
+            $category = null;
+            if (mb_strpos($noteText, 'مذاكرة أولى') !== false || mb_strpos($noteText, 'المذاكرة الأولى') !== false) {
+                $category = 'مذاكرة أولى';
+            } elseif (mb_strpos($noteText, 'مذاكرة ثانية') !== false || mb_strpos($noteText, 'المذاكرة الثانية') !== false) {
+                $category = 'مذاكرة ثانية';
+            } elseif (mb_strpos($noteText, 'امتحان فصل أول') !== false || mb_strpos($noteText, 'فصل أول') !== false) {
+                $category = 'امتحان فصل أول';
+            } elseif (mb_strpos($noteText, 'امتحان فصل ثاني') !== false || mb_strpos($noteText, 'فصل ثاني') !== false) {
+                $category = 'امتحان فصل ثاني';
+            } elseif (!empty($noteText)) {
+                $category = $noteText; // اعتماد نص الملاحظة كنوع إذا لم يكن افتراضياً
+            }
+
+            if ($category === null) {
+                continue;
+            }
+
+            $categoriesSet[$category] = true;
+            $subjectsSet[$subject] = true;
+            $matrix[$subject][$category][] = $record->score;
+        }
+
+        $chartLabels = array_keys($categoriesSet); // المحور الأساسي: أنواع المذاكرات/الامتحانات المكتوبة بالملاحظة
+        $chartDatasets = [];
+        $colorPalette = ['#1e3a8a', '#198754', '#ffc107', '#0dcaf0', '#dc3545', '#6f42c1', '#fd7e14'];
+        $colorIdx = 0;
+
+        foreach ($subjectsSet as $subj => $_) {
+            $dataPoints = [];
+            foreach ($chartLabels as $catName) {
+                if (isset($matrix[$subj][$catName])) {
+                    $scores = $matrix[$subj][$catName];
+                    $dataPoints[] = round(array_sum($scores) / count($scores), 1);
+                } else {
+                    $dataPoints[] = 0;
+                }
+            }
+
+            $chartDatasets[] = [
+                'label' => $subj,
+                'data' => $dataPoints,
+                'backgroundColor' => $colorPalette[$colorIdx % count($colorPalette)],
+                'borderRadius' => 6,
+                'barThickness' => 20
+            ];
+            $colorIdx++;
+        }
+
+        return view('parent.child_show', compact('child', 'todayRecords', 'initialPreviousRecords', 'totalPreviousCount', 'chartLabels', 'chartDatasets'));
     }
 
     public function getPreviousRecords(Request $request, Child $child)

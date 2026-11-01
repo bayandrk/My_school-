@@ -11,11 +11,13 @@ class TeacherReplyNotification extends Notification
 
     public $childName;
     public $reply;
+    public $childId;
 
-    public function __construct($childName, $reply)
+    public function __construct($childName, $reply, $childId = null)
     {
         $this->childName = $childName;
         $this->reply = $reply;
+        $this->childId = $childId;
     }
 
     public function via(object $notifiable): array
@@ -29,7 +31,7 @@ class TeacherReplyNotification extends Notification
             'title'   => 'رد جديد من المعلمة',
             'message' => 'قامت المعلمة بالرد على ملاحظتك بخصوص الطالب: ' . $this->childName,
             'reply'   => $this->reply,
-            'url'     => route('parent.dashboard'),
+            'url'     => $this->childId ? route('parent.child.show', $this->childId) . '?open_history=1' : route('parent.dashboard'),
             'icon'    => 'bi-reply-fill'
         ];
     }

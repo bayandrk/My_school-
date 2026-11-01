@@ -220,6 +220,18 @@
         </div>
     </div>
 
+    <!-- 📊 مخطط موحد لمعدلات المذاكرات والامتحانات بناءً على الملاحظات -->
+    @if(isset($chartLabels) && count($chartLabels) > 0)
+        <div class="card card-custom mb-4 p-4">
+            <h5 class="fw-bold text-dark mb-3 fs-6 d-flex align-items-center gap-2">
+                <i class="bi bi-bar-chart-fill fs-5" style="color: var(--primary-color);"></i> مقارنة معدلات المذاكرات والامتحانات (حسب الملاحظات: مذاكرة أولى، مذاكرة ثانية، إلخ)
+            </h5>
+            <div style="height: 320px;">
+                <canvas id="unifiedScoresChart"></canvas>
+            </div>
+        </div>
+    @endif
+
     @php
         // ملاحظات الأم وردود المعلمة من جدول التغيرات اليومية
         $myNotes = ($child->dailyChanges ?? collect())->where('source', 'parent_note')->sortByDesc('recorded_at');
@@ -291,10 +303,12 @@
                             $allRecords = $myNotes->flatMap(function($note) {
                                 return collect([$note])->merge($note->replies);
                             })->sortByDesc('recorded_at');
+                            $perPage = 10;
+                            $totalRecords = $allRecords->count();
                         @endphp
-                        @foreach($allRecords as $record)
+                        @foreach($allRecords as $index => $record)
                             @if($record->source === 'parent_note')
-                                <div class="p-3 rounded-3 mb-2 bg-primary bg-opacity-10 border border-primary">
+                                <div class="p-3 rounded-3 mb-2 bg-primary bg-opacity-10 border border-primary history-record" style="{{ $index >= $perPage ? 'display:none;' : '' }}">
                                     <div class="d-flex justify-content-between align-items-center mb-1">
                                         <span class="badge bg-primary mb-1">
                                             <i class="bi bi-person-fill me-1"></i> ملاحظتك
@@ -304,7 +318,7 @@
                                     <p class="mb-0 small fw-semibold text-dark" style="white-space: pre-line;">{{ $record->note }}</p>
                                 </div>
                             @else
-                                <div class="p-3 rounded-3 mb-2 bg-success bg-opacity-10 border border-success border-opacity-25 me-4">
+                                <div class="p-3 rounded-3 mb-2 bg-success bg-opacity-10 border border-success border-opacity-25 me-4 history-record" style="{{ $index >= $perPage ? 'display:none;' : '' }}">
                                     <div class="d-flex justify-content-between align-items-center mb-1">
                                         <span class="badge bg-success mb-1">
                                             <i class="bi bi-reply-fill me-1"></i> رد المعلمة
@@ -315,6 +329,13 @@
                                 </div>
                             @endif
                         @endforeach
+                        @if($totalRecords > $perPage)
+                            <div class="text-center py-2">
+                                <button type="button" id="loadMoreHistoryBtn" class="btn btn-sm btn-outline-primary rounded-pill px-4 fw-bold" data-total="{{ $totalRecords }}" data-perpage="{{ $perPage }}">
+                                    <i class="bi bi-arrow-down-circle me-1"></i> تحميل المزيد ({{ max(0, $totalRecords - $perPage) }} المتبقي)
+                                </button>
+                            </div>
+                        @endif
                     </div>
                     <div class="modal-footer border-0">
                         <button type="button" class="btn btn-secondary btn-sm rounded-3 px-4" data-bs-dismiss="modal">إغلاق</button>
@@ -503,6 +524,7 @@
 </div>
 
 @push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
     function toggleAllTeachers(source) {
         var checkboxes = document.getElementsByClassName('teacher-checkbox');
@@ -534,6 +556,69 @@
             btn.innerHTML = 'حدث خطأ، اعيد المحاولة';
         });
     }
+
+    @if(isset($chartLabels) && count($chartLabels) > 0)
+        document.addEventListener("DOMContentLoaded", function () {
+            const ctx = document.getElementById('unifiedScoresChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: {!! json_encode($chartLabels) !!},
+                    datasets: {!! json_encode($chartDatasets) !!}
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: { font: { family: 'Cairo', size: 12, weight: 'bold' } }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: { font: { family: 'Cairo' } }
+                        },
+                        x: {
+                            ticks: { font: { family: 'Cairo', weight: 'bold' } }
+                        }
+                    }
+                }
+            });
+        });
+    @endif
+
+    // فتح سجل الملاحظات والردود تلقائياً عند القول من إشعار رد المعلمة
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('open_history') === '1' && document.getElementById('parentHistoryModal')) {
+        const modalEl = document.getElementById('parentHistoryModal');
+        bootstrap.Modal.getOrCreateInstance(modalEl).show();
+        // إزالة الباراميتر من الرابط بعد الفتح
+        window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
+    // تحميل المزيد من سجل الملاحظات والردود (10 في كل مرة)
+    document.addEventListener('DOMContentLoaded', function() {
+        const loadMoreBtn = document.getElementById('loadMoreHistoryBtn');
+        if (loadMoreBtn) {
+            loadMoreBtn.addEventListener('click', function() {
+                const total = parseInt(this.dataset.total);
+                const perPage = parseInt(this.dataset.perpage);
+                const records = document.querySelectorAll('#parentHistoryModal .history-record[style*="display:none"]');
+                records.forEach(function(record, i) {
+                    if (i < perPage) record.style.display = '';
+                });
+                const remaining = document.querySelectorAll('#parentHistoryModal .history-record[style*="display:none"]').length;
+                if (remaining > 0) {
+                    loadMoreBtn.innerHTML = '<i class="bi bi-arrow-down-circle me-1"></i> تحميل المزيد (' + remaining + ' المتبقي)';
+                } else {
+                    loadMoreBtn.closest('.text-center').style.display = 'none';
+                }
+            });
+        }
+    });
 </script>
 @endpush
 

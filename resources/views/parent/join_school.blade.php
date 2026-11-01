@@ -249,7 +249,7 @@
                                         <span class="badge bg-danger fw-bold">مرفوض</span>
                                     @endif
                                 </td>
-                                <td class="text-muted">{{ $req->created_at->format('Y-m-d H:i') }}</td>
+                                <td class="text-muted">{{ $req->created_at?->format('Y-m-d H:i') ?? '-' }}</td>
                             </tr>
                         @endforeach
                     </tbody>

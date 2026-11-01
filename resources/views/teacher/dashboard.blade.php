@@ -104,7 +104,7 @@
     <div class="stat-card overflow-hidden">
         <div class="p-3.5 bg-white border-bottom d-flex justify-content-between align-items-center flex-wrap gap-2">
             <h6 class="fw-bold text-dark mb-0 d-flex align-items-center gap-2">
-                <i class="bi bi-clock-history text-success fs-5"></i> آخر السجلات المضافة
+                <i class="bi bi-clock-history text-success fs-5"></i> تقارير اليوم
             </h6>
             <a href="{{ Route::has('teacher.daily-changes') ? route('teacher.daily-changes') : url('/teacher/daily-changes') }}" class="btn btn-success btn-sm fw-bold px-3 rounded-2">
                 عرض كافة السجلات
@@ -118,6 +118,7 @@
                         <tr>
                             <th class="py-2.5 text-muted">#</th>
                             <th class="py-2.5 text-start ps-4">اسم الطالب</th>
+                            <th class="py-2.5">الصف والشعبة</th>
                             <th class="py-2.5">نوع السجل / التقييم</th>
                             <th class="py-2.5">التاريخ</th>
                             <th class="py-2.5">الملاحظات</th>
@@ -135,6 +136,14 @@
                                     {{ $record->child->name ?? $record->student->name ?? 'طالب' }}
                                 </td>
                                 <td>
+                                    @php
+                                        $child = $record->child ?? $record->student ?? null;
+                                    @endphp
+                                    <span class="text-secondary">
+                                        {{ $child->class ?? '-' }} {{ $child->section ? ' - ' . $child->section : '' }}
+                                    </span>
+                                </td>
+                                <td>
                                     <span class="badge-record-type">
                                         {{ $record->subject ?? 'سجل يومي' }}
                                     </span>
@@ -148,14 +157,24 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="5" class="py-4 text-muted">
-                                    لا توجد سجلات مضافة حديثاً.
+                                <td colspan="6" class="py-4 text-muted">
+                                    لا توجد سجلات مضافة اليوم.
                                 </td>
                             </tr>
                         @endforelse
                     </tbody>
                 </table>
             </div>
+
+            @if(method_exists($latestRecords, 'hasPages') && $latestRecords->hasPages())
+                <div class="d-flex justify-content-between align-items-center px-3 py-3 border-top small text-muted">
+                    <span>عرض {{ $latestRecords->firstItem() }} - {{ $latestRecords->lastItem() }} من {{ $latestRecords->total() }} سجل</span>
+                    <span class="badge bg-success-subtle text-success fw-bold">10 سجلات في كل صفحة</span>
+                </div>
+                <div class="d-flex justify-content-center pb-3">
+                    {{ $latestRecords->appends(request()->query())->links('pagination::bootstrap-5') }}
+                </div>
+            @endif
         </div>
     </div>
 

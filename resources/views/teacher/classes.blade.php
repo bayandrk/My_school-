@@ -253,7 +253,13 @@
                         <i class="bi bi-building text-primary me-1"></i> {{ $className }}
                     </span>
                     <span class="badge badge-students-count rounded-pill px-2.5 py-1 small">
-                        {{ $sections->flatten()->count() }} طالب
+                        @php
+                            $totalClassStudents = is_array($sections) || $sections instanceof \Countable ? 
+                                collect($sections)->sum(function($sec) { 
+                                    return is_array($sec) ? count($sec['students'] ?? []) : ($sec['total'] ?? count($sec['students'] ?? [])); 
+                                }) : 0;
+                        @endphp
+                        {{ $totalClassStudents }} طالب
                     </span>
                 </div>
             </div>
@@ -261,9 +267,13 @@
             <!-- محتوى الصف (الشعب) - مغلق افتراضياً -->
             <div class="collapse" id="classCollapse{{ $loop->index }}">
                 <div class="card-body p-3 bg-light">
-                    @foreach($sections as $sectionName => $students)
+                    @foreach($sections as $sectionName => $sectionData)
+                        @php
+                            $studentsList = is_array($sectionData) ? ($sectionData['students'] ?? []) : ($sectionData->students ?? $sectionData);
+                            $totalCount = is_array($sectionData) ? ($sectionData['total'] ?? count($studentsList)) : count($studentsList);
+                        @endphp
                         <div class="card border mb-3 shadow-none rounded-3 overflow-hidden">
-                            <!-- 2. هيدر الشعبة (يحتوي على أزرار عرض العلامات وعرض الملاحظات الخاصة بالشعبة) -->
+                            <!-- 2. هيدر الشعبة -->
                             <div class="section-header d-flex justify-content-between align-items-center flex-wrap gap-2">
                                 <div class="section-header-clickable d-flex align-items-center gap-2 flex-grow-1"
                                      data-bs-toggle="collapse" data-bs-target="#sectionCollapse{{ $loop->parent->index }}_{{ $loop->index }}"
@@ -273,24 +283,24 @@
                                         <i class="bi bi-diagram-3 me-1 text-primary"></i> الشعبة: {{ $sectionName }}
                                     </span>
                                     <span class="badge bg-secondary bg-opacity-15 text-dark rounded-pill px-2 py-0.5 small fw-bold">
-                                        {{ $students->count() }} طالب
+                                        {{ $totalCount }} طالب
                                     </span>
                                 </div>
 
-                                <!-- أزرار عرض العلامات والملاحظات الخاصة بهذه الشعبة تحديداً -->
+                                <!-- أزرار عرض العلامات والملاحظات الخاصين بالشعبة -->
                                 <div class="d-flex align-items-center gap-2 flex-wrap" onclick="event.stopPropagation();">
                                     <a href="{{ route('teacher.class.scores', ['class_name' => $className . ' - الشعبة ' . $sectionName]) }}" class="btn btn-school-dynamic">
-    <i class="bi bi-award-fill"></i> عرض العلامات
-</a>
+                                        <i class="bi bi-award-fill"></i> عرض العلامات
+                                    </a>
                                     <a href="{{ route('teacher.class.notes', ['class_name' => $className . ' - الشعبة ' . $sectionName]) }}" class="btn btn-school-dynamic">
-        <i class="bi bi-journal-text"></i> عرض الملاحظات
-    </a>
+                                        <i class="bi bi-journal-text"></i> عرض الملاحظات
+                                    </a>
                                 </div>
                             </div>
 
-                            <!-- 3. جدول طلاب الشعبة - مغلق افتراضياً -->
+                            <!-- 3. جدول طلاب الشعبة (تحميل فوري 10 بـ 10 بـ JS) -->
                             <div class="collapse" id="sectionCollapse{{ $loop->parent->index }}_{{ $loop->index }}">
-                                <div class="card-body p-0 bg-white">
+                                <div class="card-body p-0 bg-white section-students-container">
                                     <div class="table-responsive">
                                         <table class="table table-hover align-middle text-center mb-0 small">
                                             <thead class="table-light">
@@ -306,8 +316,8 @@
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                @foreach($students as $index => $student)
-                                                    <tr>
+                                                @foreach($studentsList as $index => $student)
+                                                    <tr class="student-row {{ $index >= 10 ? 'd-none' : '' }}">
                                                         <td class="fw-bold text-muted">{{ $index + 1 }}</td>
                                                         <td class="text-start ps-3 fw-bold text-dark">{{ $student->name }}</td>
                                                         <td class="text-secondary">{{ $student->age }} سنة</td>
@@ -322,7 +332,7 @@
                                                             </span>
                                                         </td>
                                                         <td>
-                                                            @if($student->average_score !== null)
+                                                            @if(isset($student->average_score) && $student->average_score !== null)
                                                                 <span class="badge badge-average-score rounded-pill">
                                                                     {{ $student->average_score }}%
                                                                 </span>
@@ -349,6 +359,15 @@
                                             </tbody>
                                         </table>
                                     </div>
+
+                                    <!-- زر عرض المزيد دون تحديث الصفحة -->
+                                    @if(count($studentsList) > 10)
+                                        <div class="p-3 text-center bg-light border-top load-more-container">
+                                            <button type="button" class="btn btn-search-school btn-sm px-4 fw-bold btn-load-more-js">
+                                                <i class="bi bi-chevron-down me-1"></i> عرض المزيد
+                                            </button>
+                                        </div>
+                                    @endif
                                 </div>
                             </div>
                         </div>
@@ -372,8 +391,8 @@
 
 @push('scripts')
 <script>
-    // تدوير الأسهم بسلاسة عند فتح وإغلاق الصفوف والشعب
     document.addEventListener('DOMContentLoaded', function () {
+        // 1. تدوير الأسهم عند فتح وإغلاق الصفوف والشعب
         const collapses = document.querySelectorAll('.collapse');
         collapses.forEach(collapse => {
             collapse.addEventListener('show.bs.collapse', function (e) {
@@ -392,6 +411,32 @@
                     if (icon) icon.classList.add('collapsed');
                 }
             });
+        });
+
+        // 2. زر "عرض المزيد" الفوري (تحميل 10 طلاب مخفيين بدون Refresh)
+        document.addEventListener('click', function (e) {
+            const btn = e.target.closest('.btn-load-more-js');
+            if (btn) {
+                e.preventDefault();
+                const container = btn.closest('.section-students-container');
+                const hiddenRows = container.querySelectorAll('.student-row.d-none');
+                
+                let count = 0;
+                hiddenRows.forEach(row => {
+                    if (count < 10) {
+                        row.classList.remove('d-none');
+                        count++;
+                    }
+                });
+
+                // إخفاء زر "عرض المزيد" عند إظهار كل طلاب هذه الشعبة
+                if (container.querySelectorAll('.student-row.d-none').length === 0) {
+                    const loadMoreBox = btn.closest('.load-more-container');
+                    if (loadMoreBox) {
+                        loadMoreBox.style.display = 'none';
+                    }
+                }
+            }
         });
     });
 </script>

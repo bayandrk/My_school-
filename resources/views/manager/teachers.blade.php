@@ -127,12 +127,13 @@
 
     <!-- عرض بطاقات الأساتذة -->
     <div class="row g-3">
-        @forelse($teachers as $teacher)
+        @forelse($teachers as $tIndex => $teacher)
+            @php $teacherRowNum = $tIndex + 1; @endphp
             @php
                 $teacherClasses = $teacher->students->pluck('class')->unique()->filter();
                 $studentsByClass = $teacher->students->groupBy('class');
             @endphp
-            <div class="col-12">
+            <div class="col-12 teacher-row" data-index="{{ $teacherRowNum }}" style="{{ $teacherRowNum > 10 ? 'display: none;' : '' }}">
                 <div class="card teacher-card bg-white">
                     <div class="card-body p-3.5">
                         <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
@@ -199,14 +200,24 @@
                                                         </div>
 
                                                         @if(isset($studentsByClass[$class]) && $studentsByClass[$class]->count() > 0)
+                                                            @php $studentsCount = $studentsByClass[$class]->count(); $modalId = $teacher->id . '_' . Str::slug($class); @endphp
                                                             <div class="list-group rounded-3 shadow-sm">
-                                                                @foreach($studentsByClass[$class] as $student)
-                                                                    <div class="list-group-item d-flex justify-content-between align-items-center py-2 px-3">
+                                                                @foreach($studentsByClass[$class] as $sIndex => $student)
+                                                                    @php $studentRowNum = $sIndex + 1; @endphp
+                                                                    <div class="modal-student-row-{{ $modalId }} list-group-item d-flex justify-content-between align-items-center py-2 px-3" data-index="{{ $studentRowNum }}" style="{{ $studentRowNum > 10 ? 'display: none;' : '' }}">
                                                                         <span class="fw-bold text-dark small"><i class="bi bi-person-badge me-2 text-muted"></i>{{ $student->name }}</span>
                                                                         <span class="badge bg-light text-secondary border small">العمر: {{ $student->age }}</span>
                                                                     </div>
                                                                 @endforeach
                                                             </div>
+
+                                                            @if($studentsCount > 10)
+                                                                <div class="text-center py-3 border-top" id="load-more-modal-{{ $modalId }}">
+                                                                    <button type="button" onclick="loadMoreModalStudents('{{ $modalId }}', {{ $studentsCount }})" class="btn btn-sm-custom btn-school-dynamic btn-sm px-4 fw-bold rounded-3">
+                                                                        عرض المزيد <i class="bi bi-chevron-down ms-1"></i>
+                                                                    </button>
+                                                                </div>
+                                                            @endif
                                                         @else
                                                             <p class="text-muted small text-center py-3 mb-0">لا يوجد طلاب مسجلين في هذا الصف لهذا المعلم.</p>
                                                         @endif
@@ -226,6 +237,7 @@
                     </div>
                 </div>
             </div>
+
         @empty
             <div class="col-12">
                 <div class="card teacher-card text-center text-muted py-5 bg-white">
@@ -234,6 +246,53 @@
                 </div>
             </div>
         @endforelse
+
+        @if($teachers->count() > 10)
+            <div class="col-12 text-center py-3" id="load-more-teachers-container">
+                <button type="button" onclick="loadMoreTeachers()" class="btn btn-sm-custom btn-school-dynamic px-4 fw-bold rounded-3">
+                    عرض المزيد <i class="bi bi-chevron-down ms-1"></i>
+                </button>
+            </div>
+        @endif
     </div>
 
 @endsection
+
+@push('scripts')
+<script>
+    // عرض الأساتذة وطلاب كل صف 10 بـ 10 (نفس طريقة صفحة الصفوف)
+    const visibleTeachersMap = {};
+
+    function loadMoreTeachers() {
+        if (!visibleTeachersMap.main) visibleTeachersMap.main = 10;
+        visibleTeachersMap.main += 10;
+
+        const rows = document.querySelectorAll('.teacher-row');
+        rows.forEach(row => {
+            const index = parseInt(row.getAttribute('data-index'));
+            if (index <= visibleTeachersMap.main) row.style.display = '';
+        });
+
+        if (visibleTeachersMap.main >= rows.length) {
+            const btnContainer = document.getElementById('load-more-teachers-container');
+            if (btnContainer) btnContainer.style.display = 'none';
+        }
+    }
+
+    function loadMoreModalStudents(modalId, totalCount) {
+        if (!visibleTeachersMap['modal_' + modalId]) visibleTeachersMap['modal_' + modalId] = 10;
+        visibleTeachersMap['modal_' + modalId] += 10;
+
+        const rows = document.querySelectorAll(`.modal-student-row-${modalId}`);
+        rows.forEach(row => {
+            const index = parseInt(row.getAttribute('data-index'));
+            if (index <= visibleTeachersMap['modal_' + modalId]) row.style.display = '';
+        });
+
+        if (visibleTeachersMap['modal_' + modalId] >= totalCount) {
+            const btnContainer = document.getElementById(`load-more-modal-${modalId}`);
+            if (btnContainer) btnContainer.style.display = 'none';
+        }
+    }
+</script>
+@endpush
