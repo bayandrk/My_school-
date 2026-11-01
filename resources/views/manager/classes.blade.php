@@ -231,9 +231,9 @@
                     @endif
                 </form>
 
-                <a href="{{ route('manager.children.archived') }}" class="btn btn-outline-danger btn-sm-custom d-flex align-items-center gap-1">
-                    <i class="bi bi-box-archive-fill"></i> أرشيف الطلاب
-                </a>
+                <a href="{{ route('manager.children.archived') }}" class="btn btn-sm-custom btn-school-dynamic d-flex align-items-center gap-1">
+    <i class="bi bi-box-archive-fill"></i> أرشيف الطلاب
+</a>
             </div>
         </div>
     </div>

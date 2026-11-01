@@ -548,14 +548,32 @@ public function dashboard(Request $request)
         $this->checkManager();
         $search = $request->input('search');
 
-        // جلب الأساتذة في نفس مدرسة المدير فقط مع الطلاب التابعين لهم
+        $selectedYear = (string) $request->input('year', now()->year);
+
+        // جلب الأساتذة في نفس مدرسة المدير فقط مع الطلاب التابعين لهم (فعّالين فقط، بحسب العام المختار)
         $teachers = $this->teachersQuery()
             ->status(User::STATUS_APPROVED)
-            ->with('students')
+            ->with(['students' => function ($q) use ($selectedYear) {
+                $q->where(function ($qq) {
+                    $qq->where('children.status', 'active')->orWhereNull('children.status');
+                })->where(function ($qq) use ($selectedYear) {
+                    $qq->whereYear('children.created_at', $selectedYear)
+                       ->orWhere('children.class', 'LIKE', "%{$selectedYear}%");
+                });
+            }])
             ->search($search)
             ->get();
 
-        return view('manager.teachers', compact('teachers', 'search'));
+        // السنوات المتاحة لطلاب المدرسة (نفس منطق صفحة دليل الصفوف)
+        $availableYears = $this->childrenQuery()
+            ->selectRaw('YEAR(created_at) as year')
+            ->distinct()
+            ->pluck('year')
+            ->push((int)now()->year)
+            ->unique()
+            ->sortDesc();
+
+        return view('manager.teachers', compact('teachers', 'search', 'selectedYear', 'availableYears'));
     }
 
     // معالجة تحديث بيانات الطالب

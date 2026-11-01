@@ -99,8 +99,8 @@
                 <form method="GET" action="{{ route('manager.teachers') }}" class="d-flex align-items-center gap-2 flex-wrap m-0">
                     <!-- القائمة المنسدلة للعام الدراسي -->
                     <select name="year" class="form-select form-select-sm fw-semibold" style="width: 125px;" onchange="this.form.submit()">
-                        @foreach($availableYears ?? [now()->year, now()->year - 1] as $y)
-                            <option value="{{ $y }}" {{ (string)request('year', $selectedYear ?? now()->year) === (string)$y ? 'selected' : '' }}>
+                    @foreach($availableYears ?? [now()->year, now()->year - 1] as $y)
+                        <option value="{{ $y }}" {{ (string)request('year', $selectedYear ?? now()->year) === (string)$y ? 'selected' : '' }}>
                                 العام: {{ $y }}
                             </option>
                         @endforeach
@@ -118,9 +118,9 @@
                 </form>
 
                 <!-- زر الأساتذة غير المفعلين -->
-                <a href="{{ route('manager.teachers.deactivated') }}" class="btn btn-outline-danger btn-sm-custom d-flex align-items-center gap-1">
-                    <i class="bi bi-person-x-fill"></i> الأساتذة غير المفعلين
-                </a>
+                <a href="{{ route('manager.teachers.deactivated') }}" class="btn btn-sm-custom btn-school-dynamic d-flex align-items-center gap-1">
+    <i class="bi bi-person-x-fill"></i> الأساتذة غير المفعلين
+</a>
             </div>
         </div>
     </div>
@@ -130,7 +130,8 @@
         @forelse($teachers as $tIndex => $teacher)
             @php $teacherRowNum = $tIndex + 1; @endphp
             @php
-                $teacherClasses = $teacher->students->pluck('class')->unique()->filter();
+                // هيكل هرمي: الصف -> الشعبة -> الطلاب
+                $teacherClasses = $teacher->students->pluck('class')->unique()->filter()->sort();
                 $studentsByClass = $teacher->students->groupBy('class');
             @endphp
             <div class="col-12 teacher-row" data-index="{{ $teacherRowNum }}" style="{{ $teacherRowNum > 10 ? 'display: none;' : '' }}">
@@ -170,68 +171,87 @@
 
                             <div class="mb-2">
                                 <h6 class="fw-bold text-dark small mb-2">
-                                    <i class="bi bi-journal-check text-primary me-1"></i> الصفوف المسؤول عنها ({{ $teacherClasses->count() }}): انقر على الصف لعرض طلابه
+                                    <i class="bi bi-journal-check text-primary me-1"></i> الصفوف المسؤول عنها ({{ $teacherClasses->count() }}): انقر على الصف لعرض شعبه ثم طلابه
                                 </h6>
-                                <div class="d-flex flex-wrap gap-2">
-                                    @forelse($teacherClasses as $class)
-                                        @php
-                                            $classCount = isset($studentsByClass[$class]) ? $studentsByClass[$class]->count() : 0;
-                                        @endphp
+                                <div class="accordion" id="teacherClassesAcc{{ $teacher->id }}">
+    @forelse($teacherClasses as $class)
+        @php
+            $classStudents = $studentsByClass[$class] ?? collect();
+            $classCount = $classStudents->count();
+            // استخدام md5 بدلاً من Str::slug لدعم الأسماء العربية بشكل صحيح وعزلها فريداً
+            $classSlug = $teacher->id . '_' . md5($class);
+            $studentsBySection = $classStudents->groupBy(fn($s) => $s->section ?: 'عام');
+        @endphp
 
-                                        <!-- زر يفتح نافذة منبثقة خاصة بطلاب هذا الصف -->
-                                        <button type="button" class="btn badge-class px-3 py-2 rounded-2 border shadow-sm text-start" data-bs-toggle="modal" data-bs-target="#classModal{{ $teacher->id }}_{{ Str::slug($class) }}">
-                                            <i class="bi bi-building me-1"></i> {{ $class }} <span class="badge bg-primary text-white ms-1">{{ $classCount }} طلاب</span>
+        <!-- الصف -->
+        <div class="accordion-item border rounded-3 mb-2 bg-light shadow-sm">
+            <h2 class="accordion-header" id="classHead{{ $classSlug }}">
+                <button class="accordion-button collapsed bg-white fw-bold text-dark rounded-3" type="button"
+                        data-bs-toggle="collapse" data-bs-target="#classBody{{ $classSlug }}"
+                        aria-expanded="false" aria-controls="classBody{{ $classSlug }}">
+                    <i class="bi bi-building me-2 text-primary"></i>
+                    الصف: {{ $class }}
+                    <span class="badge bg-primary text-white ms-2">{{ $classCount }} طلاب</span>
+                </button>
+            </h2>
+            <div id="classBody{{ $classSlug }}" class="accordion-collapse collapse" aria-labelledby="classHead{{ $classSlug }}"
+                 data-bs-parent="#teacherClassesAcc{{ $teacher->id }}">
+                <div class="accordion-body py-2">
+                    @if($classCount > 0)
+                        <!-- شعب الصف -->
+                        <div class="accordion accordion-flush" id="sectionsAcc{{ $classSlug }}">
+                            @foreach($studentsBySection as $sectionName => $sectionStudents)
+                                @php
+                                    $sectionSlug = $classSlug . '_' . md5($sectionName);
+                                    $sectionCount = $sectionStudents->count();
+                                @endphp
+
+                                <!-- الشعبة -->
+                                <div class="accordion-item border rounded-3 mb-2 bg-white">
+                                    <h2 class="accordion-header" id="secHead{{ $sectionSlug }}">
+                                        <button class="accordion-button collapsed fw-bold text-secondary bg-light rounded-3 py-2" type="button"
+                                                data-bs-toggle="collapse" data-bs-target="#secBody{{ $sectionSlug }}"
+                                                aria-expanded="false" aria-controls="secBody{{ $sectionSlug }}">
+                                            <i class="bi bi-diagram-3 me-2 text-info"></i>
+                                            الشعبة: {{ $sectionName }}
+                                            <span class="badge bg-secondary bg-opacity-10 text-dark ms-2">{{ $sectionCount }} طالب</span>
                                         </button>
+                                    </h2>
+                                    <div id="secBody{{ $sectionSlug }}" class="accordion-collapse collapse" aria-labelledby="secHead{{ $sectionSlug }}"
+                                         data-bs-parent="#sectionsAcc{{ $classSlug }}">
+                                        <div class="accordion-body py-2">
+                                            @php $secId = $sectionSlug; @endphp
+                                            <div class="list-group rounded-3 shadow-sm">
+    @foreach($sectionStudents as $student)
+        <div class="modal-student-row-{{ $secId }} list-group-item d-flex justify-content-between align-items-center py-2 px-3" data-index="{{ $loop->iteration }}" style="{{ $loop->iteration > 10 ? 'display: none !important;' : '' }}">
+            <span class="fw-bold text-dark small"><i class="bi bi-person-badge me-2 text-muted"></i>{{ $student->name }}</span>
+            <span class="badge bg-light text-secondary border small">العمر: {{ $student->age }}</span>
+        </div>
+    @endforeach
+</div>
 
-                                        <!-- نافذة الـ Modal لكل صف -->
-                                        <div class="modal fade" id="classModal{{ $teacher->id }}_{{ Str::slug($class) }}" tabindex="-1" aria-hidden="true">
-                                            <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
-                                                <div class="modal-content border-0 shadow rounded-4">
-                                                    <div class="modal-header border-bottom pb-2">
-                                                        <h5 class="fw-bold text-dark mb-0 fs-6">
-                                                            <i class="bi bi-people-fill text-primary me-2"></i> طلاب صف: {{ $class }}
-                                                        </h5>
-                                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                                    </div>
-                                                    <div class="modal-body py-3">
-                                                        <div class="d-flex justify-content-between align-items-center mb-3 bg-light p-2 rounded-2 small text-muted">
-                                                            <span>المعلم المسؤول: <strong class="text-dark">{{ $teacher->name }}</strong></span>
-                                                            <span class="badge bg-secondary bg-opacity-10 text-secondary">العام: {{ request('year', $selectedYear ?? now()->year) }}</span>
-                                                        </div>
-
-                                                        @if(isset($studentsByClass[$class]) && $studentsByClass[$class]->count() > 0)
-                                                            @php $studentsCount = $studentsByClass[$class]->count(); $modalId = $teacher->id . '_' . Str::slug($class); @endphp
-                                                            <div class="list-group rounded-3 shadow-sm">
-                                                                @foreach($studentsByClass[$class] as $sIndex => $student)
-                                                                    @php $studentRowNum = $sIndex + 1; @endphp
-                                                                    <div class="modal-student-row-{{ $modalId }} list-group-item d-flex justify-content-between align-items-center py-2 px-3" data-index="{{ $studentRowNum }}" style="{{ $studentRowNum > 10 ? 'display: none;' : '' }}">
-                                                                        <span class="fw-bold text-dark small"><i class="bi bi-person-badge me-2 text-muted"></i>{{ $student->name }}</span>
-                                                                        <span class="badge bg-light text-secondary border small">العمر: {{ $student->age }}</span>
-                                                                    </div>
-                                                                @endforeach
-                                                            </div>
-
-                                                            @if($studentsCount > 10)
-                                                                <div class="text-center py-3 border-top" id="load-more-modal-{{ $modalId }}">
-                                                                    <button type="button" onclick="loadMoreModalStudents('{{ $modalId }}', {{ $studentsCount }})" class="btn btn-sm-custom btn-school-dynamic btn-sm px-4 fw-bold rounded-3">
-                                                                        عرض المزيد <i class="bi bi-chevron-down ms-1"></i>
-                                                                    </button>
-                                                                </div>
-                                                            @endif
-                                                        @else
-                                                            <p class="text-muted small text-center py-3 mb-0">لا يوجد طلاب مسجلين في هذا الصف لهذا المعلم.</p>
-                                                        @endif
-                                                    </div>
-                                                    <div class="modal-footer border-top pt-2">
-                                                        <button type="button" class="btn btn-secondary btn-sm rounded-pill px-4" data-bs-dismiss="modal">إغلاق</button>
-                                                    </div>
+                                            @if($sectionCount > 10)
+                                                <div class="text-center py-3 border-top" id="load-more-modal-{{ $secId }}">
+                                                    <button type="button" onclick="loadMoreModalStudents('{{ $secId }}', {{ $sectionCount }})" class="btn btn-sm-custom btn-school-dynamic btn-sm px-4 fw-bold rounded-3">
+                                                        عرض المزيد <i class="bi bi-chevron-down ms-1"></i>
+                                                    </button>
                                                 </div>
-                                            </div>
+                                            @endif
                                         </div>
-                                    @empty
-                                        <span class="text-muted small">لا توجد صفوف مخصصة حالياً</span>
-                                    @endforelse
+                                    </div>
                                 </div>
+                            @endforeach
+                        </div>
+                    @else
+                        <p class="text-muted small text-center py-2 mb-0">لا يوجد طلاب مسجلين في هذا الصف لهذا المعلم.</p>
+                    @endif
+                </div>
+            </div>
+        </div>
+    @empty
+        <span class="text-muted small">لا توجد صفوف مخصصة حالياً</span>
+    @endforelse
+</div>
                             </div>
                         </div>
                     </div>
@@ -260,7 +280,7 @@
 
 @push('scripts')
 <script>
-    // عرض الأساتذة وطلاب كل صف 10 بـ 10 (نفس طريقة صفحة الصفوف)
+    // خريطة لتخزين العدادات لكل عنصر
     const visibleTeachersMap = {};
 
     function loadMoreTeachers() {
@@ -280,18 +300,30 @@
     }
 
     function loadMoreModalStudents(modalId, totalCount) {
-        if (!visibleTeachersMap['modal_' + modalId]) visibleTeachersMap['modal_' + modalId] = 10;
+        // إذا لم يتم النقر من قبل، نبدأ من 10 (لأن أول 10 تكون ظاهرة افتراضياً عبر style="display: none;")
+        if (!visibleTeachersMap['modal_' + modalId]) {
+            visibleTeachersMap['modal_' + modalId] = 10;
+        }
+        
+        // في كل ضغطة نضيف 10 طلاب إضافيين
         visibleTeachersMap['modal_' + modalId] += 10;
 
+        const currentLimit = visibleTeachersMap['modal_' + modalId];
         const rows = document.querySelectorAll(`.modal-student-row-${modalId}`);
+        
         rows.forEach(row => {
             const index = parseInt(row.getAttribute('data-index'));
-            if (index <= visibleTeachersMap['modal_' + modalId]) row.style.display = '';
+            if (index <= currentLimit) {
+                row.style.display = ''; // إظهار الطالب
+            }
         });
 
-        if (visibleTeachersMap['modal_' + modalId] >= totalCount) {
+        // إذا تجاوزنا أو وصلنا للعدد الكلي، نقوم بإخفاء زر "عرض المزيد"
+        if (currentLimit >= totalCount) {
             const btnContainer = document.getElementById(`load-more-modal-${modalId}`);
-            if (btnContainer) btnContainer.style.display = 'none';
+            if (btnContainer) {
+                btnContainer.style.display = 'none';
+            }
         }
     }
 </script>
