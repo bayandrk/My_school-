@@ -24,6 +24,24 @@ class School extends Model
         'subjects' => 'array',
     ];
 
+    /**
+     * ضمان تخزين البيانات العربية بشكل مقروء في حقول الـ JSON
+     */
+    public function setClassesAttribute($value)
+    {
+        $this->attributes['classes'] = is_array($value) ? json_encode($value, JSON_UNESCAPED_UNICODE) : $value;
+    }
+
+    public function setSectionsAttribute($value)
+    {
+        $this->attributes['sections'] = is_array($value) ? json_encode($value, JSON_UNESCAPED_UNICODE) : $value;
+    }
+
+    public function setSubjectsAttribute($value)
+    {
+        $this->attributes['subjects'] = is_array($value) ? json_encode($value, JSON_UNESCAPED_UNICODE) : $value;
+    }
+
     // المدرسة تحتوي على عدة مستخدمين (One-to-Many)
     public function users()
     {

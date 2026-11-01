@@ -157,7 +157,7 @@
                 <div>
                     <h4 class="fw-bold text-dark mb-1">{{ $child->name }}</h4>
                     <p class="text-muted small mb-0 fw-semibold">
-                        الصف: <span style="color: var(--primary-color);">{{ $child->class ?? '-' }}</span> | العمر: <span style="color: var(--primary-color);">{{ $child->age ?? '-' }} سنوات</span>
+                        الصف: <span style="color: var(--primary-color);">{{ $child->class ?? '-' }}</span>@if(!empty($child->section)) | الشعبة: <span style="color: var(--primary-color);">{{ $child->section }}</span>@endif | العمر: <span style="color: var(--primary-color);">{{ $child->age ?? '-' }} سنوات</span>
                         @if(!empty($child->school?->name))
                             | المدرسة: <span class="fw-bold" style="color: var(--primary-color);">{{ $child->school->name }}</span>
                         @endif
@@ -331,8 +331,8 @@
                         @endforeach
                         @if($totalRecords > $perPage)
                             <div class="text-center py-2">
-                                <button type="button" id="loadMoreHistoryBtn" class="btn btn-sm btn-outline-primary rounded-pill px-4 fw-bold" data-total="{{ $totalRecords }}" data-perpage="{{ $perPage }}">
-                                    <i class="bi bi-arrow-down-circle me-1"></i> تحميل المزيد ({{ max(0, $totalRecords - $perPage) }} المتبقي)
+                                <button type="button" id="loadMoreHistoryBtn" class="btn btn-sm rounded-pill px-4 fw-bold" data-total="{{ $totalRecords }}" data-perpage="{{ $perPage }}" style="border: 1.5px solid var(--primary-color); color: var(--primary-color); background-color: color-mix(in srgb, var(--primary-color) 8%, #ffffff); transition: all 0.2s ease;" onmouseover="this.style.backgroundColor='var(--primary-color)'; this.style.color='var(--btn-text-color, #fff)';" onmouseout="this.style.backgroundColor='color-mix(in srgb, var(--primary-color) 8%, #ffffff)'; this.style.color='var(--primary-color)';">
+                                <i class="bi bi-arrow-down-circle me-1"></i> تحميل المزيد ({{ max(0, $totalRecords - $perPage) }} المتبقي)
                                 </button>
                             </div>
                         @endif

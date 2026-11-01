@@ -566,11 +566,22 @@ public function classScores(Request $request, $className)
             'score'       => 'nullable|numeric|min:0|max:100',
         ]);
 
+        $subjectTrimmed = trim($request->subject);
+
+        $exists = DailyChange::where('child_id', $request->child_id)
+            ->whereDate('recorded_at', \Carbon\Carbon::parse($request->recorded_at)->toDateString())
+            ->where('subject', $subjectTrimmed)
+            ->whereNotIn('source', ['parent_note', 'teacher_reply'])
+            ->exists();
+        if ($exists) {
+            return back()->with('error', 'يوجد سجل بنفس المادة لهذا الطالب في نفس اليوم.');
+        }
+
         $dailyChange = DailyChange::create([
             'child_id'    => $request->child_id,
             'teacher_id'  => auth()->id(),
             'recorded_at' => $request->recorded_at,
-            'subject'     => $request->subject,
+            'subject'     => $subjectTrimmed,
             'note'        => $request->note,
             'score'       => $request->score,
         ]);
@@ -601,9 +612,21 @@ public function classScores(Request $request, $className)
             'score'       => 'nullable|numeric|min:0|max:100',
         ]);
 
+        $subjectTrimmed = trim($request->subject);
+
+        $dup = DailyChange::where('child_id', $dailyChange->child_id)
+            ->whereDate('recorded_at', \Carbon\Carbon::parse($request->recorded_at)->toDateString())
+            ->where('subject', $subjectTrimmed)
+            ->whereNotIn('source', ['parent_note', 'teacher_reply'])
+            ->where('id', '!=', $dailyChange->id)
+            ->exists();
+        if ($dup) {
+            return back()->with('error', 'يوجد سجل آخر بنفس المادة لهذا الطالب في نفس اليوم.');
+        }
+
         $dailyChange->update([
             'recorded_at' => $request->recorded_at,
-            'subject'     => $request->subject,
+            'subject'     => $subjectTrimmed,
             'note'        => $request->note,
             'score'       => $request->score,
         ]);

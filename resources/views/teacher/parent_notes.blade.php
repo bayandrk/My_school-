@@ -108,9 +108,9 @@
 
                         <!-- أزرار الرد ووقت التحديث -->
                         <div class="mt-auto d-flex align-items-center justify-content-between pt-2 border-top">
-                            <button type="button" class="btn btn-sm btn-outline-primary rounded-2 px-3 fw-bold" data-bs-toggle="modal" data-bs-target="#replyModal{{ $latestNoteModel->id }}">
+                           <button type="button" class="btn btn-sm rounded-2 px-3 fw-bold" data-bs-toggle="modal" data-bs-target="#replyModal{{ $latestNoteModel->id }}" style="border: 1.5px solid var(--primary-color); color: var(--primary-color); background-color: color-mix(in srgb, var(--primary-color) 8%, #ffffff); transition: all 0.2s ease;" onmouseover="this.style.backgroundColor='var(--primary-color)'; this.style.color='var(--btn-text-color, #fff)';" onmouseout="this.style.backgroundColor='color-mix(in srgb, var(--primary-color) 8%, #ffffff)'; this.style.color='var(--primary-color)';">
                                 <i class="bi bi-reply-fill me-1"></i> {{ $latestReply ? 'إضافة رد جديد' : 'الرد على الملاحظة' }}
-                            </button>
+                           </button>
 
                             <span class="text-muted" style="font-size: 0.72rem;">
                                 <i class="bi bi-clock me-1"></i> {{ \Carbon\Carbon::parse($latestNoteModel->recorded_at)->diffForHumans() }}
@@ -165,9 +165,9 @@
 
                                 @if($allRecords->count() > 10)
                                     <div class="text-center mt-3 mb-2 load-more-history-container">
-                                        <button type="button" class="btn btn-sm btn-outline-primary px-4 fw-bold rounded-pill btn-load-more-history">
-                                            <i class="bi bi-chevron-down me-1"></i> عرض المزيد 
-                                        </button>
+                                        <button type="button" class="btn btn-sm px-4 fw-bold rounded-pill btn-load-more-history" style="border: 1.5px solid var(--primary-color); color: var(--primary-color);">
+    <i class="bi bi-chevron-down me-1"></i> عرض المزيد 
+</button>
                                     </div>
                                 @endif
                             </div>

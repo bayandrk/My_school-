@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>@yield('title', 'نظام إدارة المدرسة')</title>
-
+     
     <!-- Bootstrap 5 RTL CSS & Icons -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
@@ -14,14 +14,16 @@
     @php
         // جلب لون المدرسة والشعار واسمها من جدول schools (المصدر الوحيد لهذه الإعدادات)
         $user = auth()->user();
-        $schoolColor = '#6b21a8';
+        $schoolColor = '#1e3a8a'; // اللون الافتراضي للتطبيق (نفس لون صفحات تسجيل الدخول/إنشاء الحساب)
         $schoolLogo  = null;
         $schoolName  = 'النظام المدرسي';
 
         if ($user && $user->role !== 'admin') {
-            $school = $user->school;
+            // للأم (parent): النافبار يبقى دائماً بلون التطبيق الافتراضي
+            // صفحة تفاصيل الطفل فقط تعيد ضبط اللون بلون المدرسة من داخلها
+            $school = $user->role === 'parent' ? null : $user->school;
 
-            if (!$school) {
+            if (!$school && $user->role !== 'parent') {
                 $schoolId = \App\Models\Child::where('parent_id', $user->id)->value('school_id');
                 $school = $schoolId ? \App\Models\School::find($schoolId) : null;
             }
@@ -67,57 +69,59 @@
 
         /* النافبار المطور بتصميم عصري وأنيق */
         .navbar-custom {
-            background-color: var(--primary-color) !important;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.06);
-            padding: 0.65rem 0;
-            transition: all 0.3s ease;
-        }
+    background-color: var(--primary-color) !important;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.06);
+    padding: 0.55rem 0 !important; /* تم تقليل الارتفاع من 0.65rem إلى 0.35rem */
+    transition: all 0.3s ease;
+}
 
         .app-brand-title {
-            color: var(--btn-text-color) !important;
-            font-weight: 800;
-            font-size: 1.05rem;
-            text-decoration: none;
-        }
+    color: var(--btn-text-color) !important;
+    font-weight: 800;
+    font-size: 0.95rem;
+    text-decoration: none;
+    white-space: nowrap; /* يمنع نزول الكلمات لسطر جديد ويحافظ على نحافة الشريط */
+}
 
-        /* شارة اسم المدرسة والشعار داخل النافبار */
-        .school-navbar-brand {
-            background-color: rgba(255, 255, 255, 0.18);
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            border-radius: 12px;
-            padding: 0.3rem 0.75rem;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-        }
+        /* شارة اسم المدرسة والشعار بشكل بسيط وأنيق بدون إطار مضيء */
+.school-navbar-brand {
+    background-color: transparent !important;
+    border: none !important;
+    padding: 0 0.5rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
 
-        .school-navbar-brand span {
-            color: var(--btn-text-color) !important;
-            font-weight: 800;
-            font-size: 0.85rem;
-            white-space: nowrap;
-        }
+.school-navbar-brand span {
+    color: var(--btn-text-color) !important;
+    font-weight: 800;
+    font-size: 0.9rem;
+    white-space: nowrap;
+    opacity: 0.95;
+}
 
-        .school-navbar-logo {
-            width: 30px;
-            height: 30px;
-            object-fit: cover;
-            border-radius: 7px;
-            background-color: #ffffff;
-            flex-shrink: 0;
-        }
+.school-navbar-logo {
+    width: 28px;
+    height: 28px;
+    object-fit: cover;
+    border-radius: 6px;
+    background-color: #ffffff;
+    flex-shrink: 0;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+}
 
-        /* روابط التنقل الأنيقة */
+        /* روابط التنقل الأنيقة بمسافات متناسقة */
         .navbar-custom .nav-link {
-            color: var(--btn-text-color) !important;
-            font-weight: 700;
-            font-size: 0.875rem;
-            padding: 0.45rem 0.85rem !important;
-            border-radius: 10px;
-            opacity: 0.88;
-            transition: all 0.2s ease;
-            white-space: nowrap;
-        }
+    color: var(--btn-text-color) !important;
+    font-weight: 700;
+    font-size: 0.82rem;
+    padding: 0.4rem 0.6rem !important; /* تقليل حشو الروابط عمودياً */
+    border-radius: 8px;
+    opacity: 0.88;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
 
         .navbar-custom .nav-link:hover {
             opacity: 1;
@@ -138,8 +142,8 @@
             border: 1px solid rgba(255, 255, 255, 0.3) !important;
             font-weight: 700;
             border-radius: 9px;
-            font-size: 0.85rem;
-            padding: 0.35rem 0.85rem;
+            font-size: 0.82rem;
+            padding: 0.35rem 0.75rem;
             transition: all 0.2s ease;
             white-space: nowrap;
         }
@@ -154,8 +158,8 @@
             color: var(--btn-text-color) !important;
             font-weight: 700;
             border-radius: 9px;
-            font-size: 0.85rem;
-            padding: 0.35rem 0.85rem;
+            font-size: 0.82rem;
+            padding: 0.35rem 0.75rem;
             transition: all 0.2s ease;
             white-space: nowrap;
         }
@@ -223,7 +227,7 @@
 <body>
 
     <!-- النافبار الموحد للموقع كاملاً -->
-    <nav class="navbar navbar-expand-lg navbar-dark navbar-custom mb-4">
+    <nav class="navbar navbar-expand-lg navbar-dark navbar-custom mb-4 py-1">
         <div class="container">
             <div class="d-flex align-items-center gap-2">
                 <!-- عنوان اللوحة -->
@@ -256,9 +260,9 @@
                 <span class="navbar-toggler-icon"></span>
             </button>
 
-            <div class="collapse navbar-collapse" id="mainNavbar">
-                <!-- روابط التنقل حسب دور المستخدم -->
-                <ul class="navbar-nav me-auto mb-2 mb-lg-0 fw-semibold gap-1 ms-lg-3">
+                <div class="collapse navbar-collapse" id="mainNavbar">
+                <!-- روابط التنقل (تتوضع على اليمين بجانب الشعار مباشرة وبشكل مضغوط) -->
+                <ul class="navbar-nav mb-0 fw-semibold gap-1 align-items-center flex-nowrap me-2">
                     @if(auth()->user()->role === 'admin')
                         <li class="nav-item">
                             <a class="nav-link {{ request()->routeIs('admin.dashboard') ? 'active' : '' }}" href="{{ route('admin.dashboard') }}">الرئيسية</a>
@@ -296,11 +300,12 @@
                             <a class="nav-link {{ request()->routeIs('teacher.parent-notes') ? 'active' : '' }}" href="{{ route('teacher.parent-notes') }}">ملاحظات الأهل</a>
                         </li>
                     @else
-                        <!-- ولي الأمر -->
+                        <!-- ولي الأمر (ليس لديه روابط نافبار إضافية، ستكون القائمة فارغة هنا) -->
                     @endif
                 </ul>
 
-                <div class="d-flex align-items-center gap-2">
+                <!-- أزرار الحساب، الإشعارات، وتسجيل الخروج (تُدفع تلقائياً لأقصى اليسار عبر ms-auto) -->
+                <div class="d-flex align-items-center gap-2 flex-nowrap ms-auto">
                     
                     <!-- 🔔 إشعارات الأدمن -->
                     @if(auth()->check() && auth()->user()->role === 'admin')
@@ -349,7 +354,7 @@
                         </div>
                     @endif
 
-                    <!-- 🔔 إشعارات المدير المُعدلة (تستدعي دالة قراءة إشعارات المدير وتوجه لصفحة المهام مباشرة) -->
+                    <!-- 🔔 إشعارات المدير -->
                     @if(auth()->check() && auth()->user()->role === 'manager')
                         @php
                             $unreadManagerNotifications = auth()->user()->unreadNotifications;
@@ -370,7 +375,6 @@
                                 </li>
                                 @forelse(auth()->user()->notifications->take(10) as $notification)
                                     <li>
-                                        <!-- تم تعديل الرابط ليستدعي مسار manager.notifications.read ليعلمه كمقروء ويفتح صفحة المهام مباشرة دون 404 -->
                                         <a class="dropdown-item p-2 rounded-2 mt-1 border-bottom text-wrap {{ $notification->read_at ? 'bg-white opacity-75' : 'bg-light fw-bold' }}" href="{{ Route::has('manager.notifications.read') ? route('manager.notifications.read', $notification->id) : route('manager.tasks') }}">
                                             <div class="d-flex align-items-center gap-2">
                                                 <i class="bi {{ $notification->data['icon'] ?? 'bi-person-plus-fill' }} text-primary fs-5"></i>
@@ -457,7 +461,7 @@
                                     <li>
                                         <a class="dropdown-item p-2 rounded-2 mt-1 border-bottom text-wrap {{ $notification->read_at ? 'bg-white opacity-75' : 'bg-light fw-bold' }}" href="{{ route('parent.notification.read', $notification->id) }}">
                                             <div class="d-flex align-items-center gap-2">
-                                                <i class="bi {{ $notification->data['icon'] ?? 'bi-info-circle' }} text-primary fs-5"></i>
+                                                <i class="bi {{ $notification->data['icon'] ?? 'bi-info-circle' }} text-format fs-5"></i>
                                                 <div>
                                                     <div class="small fw-bold text-dark">{{ $notification->data['title'] ?? 'إشعار جديد' }}</div>
                                                     <div class="text-muted" style="font-size: 0.75rem;">{{ $notification->data['message'] ?? '' }}</div>

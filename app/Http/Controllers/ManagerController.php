@@ -812,7 +812,7 @@ public function dashboard(Request $request)
     // إدارة الصفوف والشعب والمواد (تُحفظ في جدول schools كـ JSON)
     // =========================================
 
-    /** إضافة عنصر (صف / شعبة / مادة) لقوائم المدرسة */
+   /** إضافة عنصر (صف / شعبة / مادة) لقوائم المدرسة */
     public function addSchoolSetting(Request $request)
     {
         $this->checkManager();
@@ -845,8 +845,14 @@ public function dashboard(Request $request)
         }
 
         $list->push($newItem);
+        
+        // التعديل هنا: فرض حفظ البيانات كنص عربي صريح بدون ترميز Unicode Escape Sequences
         $school->{$column} = $list->values()->all();
-        $school->save();
+        
+        // استخدام الطريقة المباشرة لتحديث الحقل مع JSON_UNESCAPED_UNICODE لمنع ظهور رموز \u
+        $school->forceFill([
+            $column => $list->values()->all()
+        ])->save();
 
         $label = ['class' => 'الصف', 'section' => 'الشعبة', 'subject' => 'المادة'][$request->type];
 
