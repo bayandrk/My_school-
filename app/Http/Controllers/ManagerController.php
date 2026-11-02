@@ -91,68 +91,55 @@ public function dashboard(Request $request)
     }
 
     // صفحة المهام والطلبات المعلقة الخاصة بالمدير
-   public function tasks(Request $request)
+  public function tasks(Request $request)
 {
     $this->checkManager();
     $school = $this->school();
 
-    // طلبات الأساتذة المعلقة (تم تحويلها إلى get لتتوافق مع العرض التدريجي 5 بـ 5)
+    // استقبال كلمات البحث لكل قسم على حِدة
+    $teacherSearch = $request->input('teacher_search');
+    $parentSearch  = $request->input('parent_search');
+
+    // طلبات الأساتذة المعلقة (مع دعم البحث بالاسم)
     $pendingTeachers = collect();
     if (method_exists($this, 'teachersQuery')) {
-        $pendingTeachers = $this->teachersQuery()
-            ->status(\App\Models\User::STATUS_PENDING)
-            ->latest()
-            ->get();
+        $query = $this->teachersQuery()
+            ->status(\App\Models\User::STATUS_PENDING);
+
+        if ($teacherSearch) {
+            $query->where('name', 'like', "%{$teacherSearch}%");
+        }
+
+        $pendingTeachers = $query->latest()->get();
     } else {
-        $pendingTeachers = \App\Models\User::where('role', 'teacher')
-            ->where('status', 'pending')
-            ->latest()
-            ->get();
+        $query = \App\Models\User::where('role', 'teacher')
+            ->where('status', 'pending');
+
+        if ($teacherSearch) {
+            $query->where('name', 'like', "%{$teacherSearch}%");
+        }
+
+        $pendingTeachers = $query->latest()->get();
     }
 
-    // طلبات انضمام الأهل المعلقة
+    // طلبات انضمام الأهل المعلقة (مع دعم البحث باسم ولي الأمر)
     $pendingJoinRequests = collect();
     if ($school) {
-        $pendingJoinRequests = \App\Models\SchoolParent::pending()
+        $query = \App\Models\SchoolParent::pending()
             ->where('school_id', $school->id)
-            ->with(['parent', 'school'])
-            ->latest()
-            ->get();
+            ->with(['parent', 'school']);
+
+        if ($parentSearch) {
+            $query->whereHas('parent', function($q) use ($parentSearch) {
+                $q->where('name', 'like', "%{$parentSearch}%");
+            });
+        }
+
+        $pendingJoinRequests = $query->latest()->get();
     }
 
-    return view('manager.tasks', compact('pendingTeachers', 'pendingJoinRequests'));
+    return view('manager.tasks', compact('pendingTeachers', 'pendingJoinRequests', 'teacherSearch', 'parentSearch'));
 }
-
-    // دالة إلغاء التعيين المتوافقة مع دالة التعيين
-    public function unassignTeacherClass(Request $request)
-    {
-        $this->checkManager();
-
-        $request->validate([
-            'teacher_id' => 'required|exists:users,id',
-            'class_name' => 'required|string',
-            'section'    => 'nullable|string|max:100',
-        ]);
-
-        $children = $this->childrenQuery()
-            ->where('class', $request->class_name)
-            ->when($request->filled('section'), fn ($q) => $q->where('section', $request->section))
-            ->when(!$request->filled('section'), fn ($q) => $q->where(fn ($qq) => $qq->whereNull('section')->orWhere('section', '')))
-            ->get();
-
-        if ($children->isEmpty()) {
-            return back()->with('error', 'لم يتم العثور على طلاب في هذا الصف' . ($request->filled('section') ? ' والشعبة (' . $request->section . ')' : '') . '.');
-        }
-
-        foreach ($children as $child) {
-            $child->teachers()->detach($request->teacher_id);
-        }
-
-        $target = $request->class_name . ($request->filled('section') ? ' - الشعبة ' . $request->section : '');
-
-        return redirect()->route('manager.assignments')->with('success', 'تم إلغاء تعيين الأستاذ عن (' . $target . ') بنجاح.');
-    }
-
     public function profile()
     {
         $manager = Auth::user();

@@ -48,7 +48,7 @@
             </h6>
         </div>
     @else
-        <!-- حاوية بطاقات الطلاب (تعرض 10 بطاقات فقط مبدئياً والباقي مخفي) -->
+        <!-- حاوية بطاقات الطلاب (تعرض 9 بطاقات فقط مبدئياً والباقي مخفي) -->
         <div class="row g-4 parent-notes-container">
             @foreach($studentsWithNotes as $childId => $notesGroup)
                 @php
@@ -59,17 +59,21 @@
                     $latestReply = $latestNoteModel->replies->sortByDesc('created_at')->first();
                 @endphp
 
-                <div class="col-md-6 col-lg-4 parent-note-card-item {{ $loop->index >= 10 ? 'd-none' : '' }}">
+                <div class="col-md-6 col-lg-4 parent-note-card-item {{ $loop->index >= 9 ? 'd-none' : '' }}">
                     <div class="card border-0 shadow-sm rounded-4 h-100 p-3 bg-white d-flex flex-column" style="border-right: 5px solid var(--primary-color) !important;">
 
-                        <!-- معلومات الطالب -->
+                        <!-- معلومات الطالب مع إضافة الشعبة -->
                         <div class="d-flex align-items-center gap-3 mb-3 border-bottom pb-2">
                             <div class="rounded-circle d-flex align-items-center justify-content-center fw-bold fs-5 text-white" style="width: 48px; height: 48px; background-color: var(--primary-color);">
                                 {{ mb_substr($student->name, 0, 1) }}
                             </div>
                             <div>
                                 <h6 class="fw-bold text-dark mb-0">{{ $student->name }}</h6>
-                                <small class="text-muted">الصف: <span class="fw-semibold" style="color: var(--primary-color);">{{ $student->class ?? '-' }}</span> | ولي الأمر: {{ $student->parent->name ?? '-' }}</small>
+                                <small class="text-muted">
+                                    الصف: <span class="fw-semibold" style="color: var(--primary-color);">{{ $student->class ?? '-' }}</span> | 
+                                    الشعبة: <span class="fw-semibold" style="color: var(--primary-color);">{{ $student->section ?? '-' }}</span> | 
+                                    ولي الأمر: {{ $student->parent->name ?? '-' }}
+                                </small>
                             </div>
                         </div>
 
@@ -120,7 +124,7 @@
                     </div>
                 </div>
 
-                <!-- Modal عرض سجل الملاحظات بالكامل (10 عناصر في المرة الواحدة) -->
+                <!-- Modal عرض سجل الملاحظات بالكامل (9 عناصر في المرة الواحدة) -->
                 <div class="modal fade" id="historyModal{{ $student->id }}" tabindex="-1" aria-hidden="true">
                     <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
                         <div class="modal-content border-0 rounded-4 shadow">
@@ -138,7 +142,7 @@
                                 @endphp
                                 
                                 @foreach($allRecords as $recIndex => $record)
-                                    <div class="history-item-row @if($recIndex >= 10) d-none @endif">
+                                    <div class="history-item-row @if($recIndex >= 9) d-none @endif">
                                         @if($record->source === 'parent_note')
                                             <div class="p-3 rounded-3 mb-3 {{ $recIndex === 0 ? 'bg-primary bg-opacity-10 border border-primary' : 'bg-light border' }}">
                                                 <div class="d-flex justify-content-between align-items-center mb-2">
@@ -163,11 +167,11 @@
                                     </div>
                                 @endforeach
 
-                                @if($allRecords->count() > 10)
+                                @if($allRecords->count() > 9)
                                     <div class="text-center mt-3 mb-2 load-more-history-container">
                                         <button type="button" class="btn btn-sm px-4 fw-bold rounded-pill btn-load-more-history" style="border: 1.5px solid var(--primary-color); color: var(--primary-color);">
-    <i class="bi bi-chevron-down me-1"></i> عرض المزيد 
-</button>
+                                            <i class="bi bi-chevron-down me-1"></i> عرض المزيد 
+                                        </button>
                                     </div>
                                 @endif
                             </div>
@@ -213,7 +217,7 @@
         </div>
 
         <!-- زر عرض المزيد لبطاقات الطلاب في الصفحة الرئيسية -->
-        @if($studentsWithNotes->count() > 10)
+        @if($studentsWithNotes->count() > 9)
             <div class="text-center mt-5 mb-4" id="loadMoreParentNotesContainer">
                 <button type="button" class="btn btn-primary px-5 py-2 fw-bold rounded-pill shadow-sm" id="loadMoreParentNotesBtn" style="background-color: var(--primary-color); border-color: var(--primary-color);">
                     <i class="bi bi-chevron-down me-1"></i> عرض المزيد 
@@ -227,7 +231,7 @@
 @push('scripts')
 <script>
     document.addEventListener('DOMContentLoaded', function () {
-        // 1. زر "عرض المزيد" لبطاقات الطلاب في الصفحة الرئيسية
+        // 1. زر "عرض المزيد" لبطاقات الطلاب في الصفحة الرئيسية (يعرض 9 في كل مرة)
         const loadMoreBtn = document.getElementById('loadMoreParentNotesBtn');
         if (loadMoreBtn) {
             loadMoreBtn.addEventListener('click', function () {
@@ -235,7 +239,7 @@
                 
                 let shown = 0;
                 hiddenCards.forEach(card => {
-                    if (shown < 10) {
+                    if (shown < 9) {
                         card.classList.remove('d-none');
                         shown++;
                     }
@@ -250,7 +254,7 @@
             });
         }
 
-        // 2. زر "عرض المزيد" داخل مودال السجل الكامل
+        // 2. زر "عرض المزيد" داخل مودال السجل الكامل (يعرض 9 في كل مرة)
         document.addEventListener('click', function (e) {
             const btn = e.target.closest('.btn-load-more-history');
             if (btn) {
@@ -260,7 +264,7 @@
                 
                 let shown = 0;
                 hiddenRows.forEach(row => {
-                    if (shown < 10) {
+                    if (shown < 9) {
                         row.classList.remove('d-none');
                         shown++;
                     }

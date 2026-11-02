@@ -153,7 +153,7 @@
         </div>
     @endif
 
-    <!-- قائمة المدارس المتاحة -->
+    <!-- قائمة المدارس المتاحة (تحميل 9 بـ 9) -->
     <h6 class="fw-bold text-dark mb-3">
         <i class="bi bi-buildings me-1" style="color: var(--primary-color);"></i>
         {{ !empty($search) ? 'نتائج البحث' : 'المدارس المتاحة' }} ({{ $availableSchools->count() }})
@@ -173,8 +173,9 @@
                     $pendingRequest = $myRequests->firstWhere('school_id', $school->id);
                     $isPending = $pendingRequest && $pendingRequest->status === 'pending';
                     $isRejected = $pendingRequest && $pendingRequest->status === 'rejected';
+                    $schoolRowNum = $loop->iteration;
                 @endphp
-                <div class="col-md-6 col-lg-4">
+                <div class="col-md-6 col-lg-4 school-item-row" data-index="{{ $schoolRowNum }}" style="{{ $schoolRowNum > 9 ? 'display: none !important;' : '' }}">
                     <div class="school-card">
                         <div class="d-flex align-items-start gap-3">
                             @if($school->logo)
@@ -218,6 +219,15 @@
                 </div>
             @endforeach
         </div>
+
+        <!-- زر عرض المزيد المخصص لبطاقات المدارس -->
+        @if($availableSchools->count() > 9)
+            <div class="text-center py-3 mb-4" id="load-more-schools-container">
+                <button type="button" onclick="loadMoreSchools()" class="btn px-4 fw-bold rounded-3 shadow-sm" style="background-color: var(--primary-color); color: var(--btn-text-color, #ffffff);">
+                    عرض المزيد <i class="bi bi-chevron-down ms-1"></i>
+                </button>
+            </div>
+        @endif
     @endif
 
     <!-- طلباتي السابقة -->
@@ -260,3 +270,28 @@
 
 </div>
 @endsection
+
+@push('scripts')
+<script>
+    let visibleSchoolsLimit = 9;
+
+    function loadMoreSchools() {
+        visibleSchoolsLimit += 9;
+        const rows = document.querySelectorAll('.school-item-row');
+        
+        rows.forEach(row => {
+            const index = parseInt(row.getAttribute('data-index'));
+            if (index <= visibleSchoolsLimit) {
+                row.style.setProperty('display', '', 'important');
+            }
+        });
+
+        if (visibleSchoolsLimit >= rows.length) {
+            const btnContainer = document.getElementById('load-more-schools-container');
+            if (btnContainer) {
+                btnContainer.style.display = 'none';
+            }
+        }
+    }
+</script>
+@endpush

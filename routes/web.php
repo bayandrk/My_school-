@@ -148,6 +148,8 @@ Route::prefix('teacher')->name('teacher.')->group(function () {
         Route::post('/children/{child}/send-teacher-note', [ParentController::class, 'sendTeacherNote'])->name('send-teacher-note');
         Route::get('/parent-notes', [TeacherController::class, 'parentNotes'])->name('parent-notes');
          Route::get('/notifications/{id}/read', [TeacherController::class, 'readNotification'])->name('notification.read');
+         Route::get('/child/{child}/grades', [ParentController::class, 'showChildGrades'])->name('child.grades');
+        Route::get('/child/{child}/notes-list', [ParentController::class, 'showChildNotes'])->name('child.notes-list');
         //  مسار قراءة إشعارات ولي الأمر (سيصبح اسمه parent.notification.read)
         Route::get('/notification/{id}/read', function ($id) {
             $notification = auth()->user()->notifications()->where('id', $id)->first();

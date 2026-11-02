@@ -77,6 +77,21 @@
             background-color: #ef4444 !important;
             color: #ffffff !important;
         }
+        .form-control:focus {
+            border-color: var(--primary-color) !important;
+            box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 20%, transparent) !important;
+        }
+        /* زر البحث بلون المدرسة الديناميكي */
+        .btn-search-school {
+            background-color: color-mix(in srgb, var(--primary-color) 15%, #ffffff) !important;
+            border: 1.5px solid var(--primary-color) !important;
+            color: var(--primary-color) !important;
+            font-weight: 700 !important;
+        }
+        .btn-search-school:hover {
+            background-color: var(--primary-color) !important;
+            color: var(--btn-text-color) !important;
+        }
     </style>
 @endpush
 
@@ -137,26 +152,38 @@
         </div>
     </div>
 
-    <!-- جدول طلبات انضمام الأهل المعلقة (5 لكل دفعة) -->
+    <!-- جدول طلبات انضمام الأهل المعلقة -->
     <div class="row g-4 mb-4">
         <div class="col-12">
             <div class="card dashboard-card">
-                <div class="card-header card-header-custom d-flex justify-content-between align-items-center">
+                <div class="card-header card-header-custom d-flex justify-content-between align-items-center flex-wrap gap-2">
                     <span class="d-flex align-items-center gap-2 text-dark fw-bold">
                         <i class="bi bi-people-fill text-primary"></i> طلبات انضمام الأهل المعلقة
                     </span>
-                    <span class="badge bg-primary bg-opacity-10 text-primary px-3 py-1.5 rounded-pill small fw-bold">
-                        {{ isset($pendingJoinRequests) ? $pendingJoinRequests->count() : 0 }}
-                    </span>
+                    
+                    <!-- نموذج البحث السريع لطلبات الأهل -->
+                    <form method="GET" action="{{ route('manager.tasks') }}" class="d-flex align-items-center gap-2 m-0">
+                        @if(request('teacher_search'))
+                            <input type="hidden" name="teacher_search" value="{{ request('teacher_search') }}">
+                        @endif
+                        <div class="input-group input-group-sm" style="width: 230px;">
+                            <input type="text" name="parent_search" value="{{ $parentSearch ?? request('parent_search') }}" class="form-control" placeholder="ابحث باسم ولي الأمر...">
+                            <button type="submit" class="btn btn-search-school"><i class="bi bi-search"></i></button>
+                            @if(request('parent_search'))
+                                <a href="{{ route('manager.tasks', ['teacher_search' => request('teacher_search')]) }}" class="btn btn-outline-secondary">إلغاء</a>
+                            @endif
+                        </div>
+                    </form>
                 </div>
+                
                 <div class="card-body p-3 parent-requests-container">
                     @if(empty($pendingJoinRequests) || $pendingJoinRequests->isEmpty())
                         <div class="text-center py-4">
                             <div class="stat-icon mx-auto mb-2" style="width: 48px; height: 48px; font-size: 1.4rem;">
                                 <i class="bi bi-inbox-fill"></i>
                             </div>
-                            <h6 class="fw-bold text-secondary mb-1 small">لا توجد طلبات انضمام أهل معلقة حالياً</h6>
-                            <p class="text-muted small mb-0">جميع طلبات الأهل تم التعامل معها بنجاح.</p>
+                            <h6 class="fw-bold text-secondary mb-1 small">لا توجد طلبات انضمام أهل معلقة مطابقة للبحث</h6>
+                            <p class="text-muted small mb-0">تأكد من صحة الاسم المدخل أو أن جميع الطلبات تمت معالجتها.</p>
                         </div>
                     @else
                         <div class="table-responsive">
@@ -205,8 +232,8 @@
 
                         <!-- زر عرض المزيد للأسطر الخاصة بالأهل -->
                         @if($pendingJoinRequests->count() > 5)
-                            <div class="text-center mt-3 pt-2 border-top load-more-parent-container">
-                                <button type="button" class="btn btn-sm btn-primary px-4 fw-bold rounded-pill shadow-sm" id="loadMoreParentBtn" style="background-color: var(--primary-color); border-color: var(--primary-color);">
+                            <div class="text-center mt-3 pt-2 border-top load-more-parent-container" style="{{ request('parent_search') ? 'display: none;' : '' }}">
+                                <button type="button" class="btn btn-sm px-4 fw-bold rounded-pill shadow-sm btn-action-approve" id="loadMoreParentBtn">
                                     عرض المزيد
                                 </button>
                             </div>
@@ -217,26 +244,38 @@
         </div>
     </div>
 
-    <!-- جدول طلبات الأساتذة المعلقة (5 لكل دفعة) -->
+    <!-- جدول طلبات الأساتذة المعلقة -->
     <div class="row g-4">
         <div class="col-12">
             <div class="card dashboard-card">
-                <div class="card-header card-header-custom d-flex justify-content-between align-items-center">
+                <div class="card-header card-header-custom d-flex justify-content-between align-items-center flex-wrap gap-2">
                     <span class="d-flex align-items-center gap-2 text-dark fw-bold">
                         <i class="bi bi-person-plus-fill text-primary"></i> طلبات انضمام الأساتذة المعلقة
                     </span>
-                    <span class="badge bg-primary bg-opacity-10 text-primary px-3 py-1.5 rounded-pill small fw-bold">
-                        {{ isset($pendingTeachers) ? $pendingTeachers->count() : 0 }}
-                    </span>
+
+                    <!-- نموذج البحث السريع لطلبات الأساتذة -->
+                    <form method="GET" action="{{ route('manager.tasks') }}" class="d-flex align-items-center gap-2 m-0">
+                        @if(request('parent_search'))
+                            <input type="hidden" name="parent_search" value="{{ request('parent_search') }}">
+                        @endif
+                        <div class="input-group input-group-sm" style="width: 230px;">
+                            <input type="text" name="teacher_search" value="{{ $teacherSearch ?? request('teacher_search') }}" class="form-control" placeholder="ابحث باسم الأستاذ...">
+                            <button type="submit" class="btn btn-search-school"><i class="bi bi-search"></i></button>
+                            @if(request('teacher_search'))
+                                <a href="{{ route('manager.tasks', ['parent_search' => request('parent_search')]) }}" class="btn btn-outline-secondary">إلغاء</a>
+                            @endif
+                        </div>
+                    </form>
                 </div>
+
                 <div class="card-body p-3 teacher-requests-container">
                     @if(empty($pendingTeachers) || $pendingTeachers->isEmpty())
                         <div class="text-center py-4">
                             <div class="stat-icon mx-auto mb-2" style="width: 48px; height: 48px; font-size: 1.4rem;">
                                 <i class="bi bi-inbox-fill"></i>
                             </div>
-                            <h6 class="fw-bold text-secondary mb-1 small">لا توجد طلبات انضمام معلقة حالياً</h6>
-                            <p class="text-muted small mb-0">جميع طلبات الأساتذة تم التعامل معها بنجاح.</p>
+                            <h6 class="fw-bold text-secondary mb-1 small">لا توجد طلبات انضمام معلقة مطابقة للبحث</h6>
+                            <p class="text-muted small mb-0">تأكد من صحة الاسم المدخل أو أن جميع طلبات الأساتذة تمت معالجتها.</p>
                         </div>
                     @else
                         <div class="table-responsive">
@@ -285,8 +324,8 @@
 
                         <!-- زر عرض المزيد للأسطر الخاصة بالأساتذة -->
                         @if($pendingTeachers->count() > 5)
-                            <div class="text-center mt-3 pt-2 border-top load-more-teacher-container">
-                                <button type="button" class="btn btn-sm btn-primary px-4 fw-bold rounded-pill shadow-sm" id="loadMoreTeacherBtn" style="background-color: var(--primary-color); border-color: var(--primary-color);">
+                            <div class="text-center mt-3 pt-2 border-top load-more-teacher-container" style="{{ request('teacher_search') ? 'display: none;' : '' }}">
+                                <button type="button" class="btn btn-sm px-4 fw-bold rounded-pill shadow-sm btn-action-approve" id="loadMoreTeacherBtn">
                                     عرض المزيد
                                 </button>
                             </div>

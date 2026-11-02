@@ -118,6 +118,14 @@
         .btn-send-custom:hover {
             opacity: 0.9;
         }
+
+        .btn-header-action {
+            font-weight: 700;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            padding: 0.35rem 0.85rem;
+            transition: all 0.2s ease;
+        }
     </style>
 @endpush
 
@@ -155,7 +163,17 @@
                     </div>
                 @endif
                 <div>
-                    <h4 class="fw-bold text-dark mb-1">{{ $child->name }}</h4>
+                    <!-- اسم الطالب مع زري عرض العلامات والملاحظات بجانبه في الأعلى -->
+                    <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
+                        <h4 class="fw-bold text-dark mb-0">{{ $child->name }}</h4>
+                        <a href="{{ route('parent.child.grades', $child->id) }}" class="btn btn-sm btn-success btn-header-action shadow-sm text-decoration-none">
+                            <i class="bi bi-award-fill me-1"></i> عرض العلامات
+                        </a>
+                        <a href="{{ route('parent.child.notes-list', $child->id) }}" class="btn btn-sm btn-header-action shadow-sm text-decoration-none text-white" style="background-color: var(--primary-color);">
+                       <i class="bi bi-journal-richtext me-1"></i> عرض الملاحظات
+                          </a>
+                    </div>
+
                     <p class="text-muted small mb-0 fw-semibold">
                         الصف: <span style="color: var(--primary-color);">{{ $child->class ?? '-' }}</span>@if(!empty($child->section)) | الشعبة: <span style="color: var(--primary-color);">{{ $child->section }}</span>@endif | العمر: <span style="color: var(--primary-color);">{{ $child->age ?? '-' }} سنوات</span>
                         @if(!empty($child->school?->name))

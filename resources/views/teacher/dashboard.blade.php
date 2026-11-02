@@ -53,52 +53,53 @@
     </div>
 
     <!-- الإحصائيات السريعة -->
-    <div class="row g-3 mb-4">
-        <!-- 1. إجمالي الطلاب -->
-        <div class="col-md-4">
-            <div class="stat-card p-3.5 d-flex align-items-center justify-content-between">
-                <div>
-                    <span class="text-muted small fw-bold d-block mb-1">إجمالي الطلاب المربوطين بحسابك</span>
-                    <h3 class="fw-bold text-dark mb-0">
-                        {{ $studentsCount ?? $totalStudentsCount ?? (isset($students) ? count($students) : 0) }} <small class="fs-6 text-muted font-normal">طالب</small>
-                    </h3>
+   <!-- كروت الإحصائيات بتصميم منسق ومضبوط لليمين واليسار -->
+<div class="row g-3 mb-4">
+    <!-- إجمالي السجلات والتقييمات -->
+    <div class="col-md-4">
+        <div class="stat-card d-flex align-items-center justify-content-between p-3 bg-white rounded-4 shadow-sm border">
+            <div class="d-flex align-items-center gap-3">
+                <div class="stat-icon d-flex align-items-center justify-content-center rounded-3 fs-4" style="width: 50px; height: 50px; background-color: color-mix(in srgb, var(--primary-color) 12%, #ffffff); color: var(--primary-color);">
+                    <i class="bi bi-journal-check"></i>
                 </div>
-                <div class="icon-box bg-primary bg-opacity-10 text-primary">
-                    <i class="bi bi-people-fill"></i>
-                </div>
-            </div>
-        </div>
-
-        <!-- 2. إجمالي الصفوف -->
-        <div class="col-md-4">
-            <div class="stat-card p-3.5 d-flex align-items-center justify-content-between">
-                <div>
-                    <span class="text-muted small fw-bold d-block mb-1">إجمالي الصفوف المسؤول عنها</span>
-                    <h3 class="fw-bold text-dark mb-0">
-                        {{ $classesCount ?? $totalClassesCount ?? (isset($classes) ? count($classes) : 0) }} <small class="fs-6 text-muted font-normal">صفوف</small>
-                    </h3>
-                </div>
-                <div class="icon-box bg-warning bg-opacity-10 text-warning">
-                    <i class="bi bi-building-gear"></i>
-                </div>
-            </div>
-        </div>
-
-        <!-- 3. إجمالي السجلات -->
-        <div class="col-md-4">
-            <div class="stat-card p-3.5 d-flex align-items-center justify-content-between">
                 <div>
                     <span class="text-muted small fw-bold d-block mb-1">إجمالي السجلات والتقييمات المدخلة</span>
-                    <h3 class="fw-bold text-dark mb-0">
-                        {{ $recordsCount ?? $totalRecordsCount ?? (isset($dailyChanges) ? count($dailyChanges) : 0) }} <small class="fs-6 text-muted font-normal">سجل</small>
-                    </h3>
-                </div>
-                <div class="icon-box bg-success bg-opacity-10 text-success">
-                    <i class="bi bi-journal-check"></i>
+                    <h4 class="fw-bold text-dark mb-0">{{ $totalRecords ?? 0 }} <span class="fs-6 text-muted fw-normal">سجل</span></h4>
                 </div>
             </div>
         </div>
     </div>
+
+    <!-- إجمالي الصفوف المسؤول عنها -->
+    <div class="col-md-4">
+        <div class="stat-card d-flex align-items-center justify-content-between p-3 bg-white rounded-4 shadow-sm border">
+            <div class="d-flex align-items-center gap-3">
+                <div class="stat-icon d-flex align-items-center justify-content-center rounded-3 fs-4" style="width: 50px; height: 50px; background-color: color-mix(in srgb, var(--primary-color) 12%, #ffffff); color: var(--primary-color);">
+                    <i class="bi bi-building-gear"></i>
+                </div>
+                <div>
+                    <span class="text-muted small fw-bold d-block mb-1">إجمالي الصفوف المسؤول عنها</span>
+                    <h4 class="fw-bold text-dark mb-0">{{ $totalClasses ?? 0 }} <span class="fs-6 text-muted fw-normal">صفوف</span></h4>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- إجمالي الطلاب المربوطين بحسابك -->
+    <div class="col-md-4">
+        <div class="stat-card d-flex align-items-center justify-content-between p-3 bg-white rounded-4 shadow-sm border">
+            <div class="d-flex align-items-center gap-3">
+                <div class="stat-icon d-flex align-items-center justify-content-center rounded-3 fs-4" style="width: 50px; height: 50px; background-color: color-mix(in srgb, var(--primary-color) 12%, #ffffff); color: var(--primary-color);">
+                    <i class="bi bi-people-fill"></i>
+                </div>
+                <div>
+                    <span class="text-muted small fw-bold d-block mb-1">إجمالي الطلاب المربوطين بحسابك</span>
+                    <h4 class="fw-bold text-dark mb-0">{{ $totalStudents ?? 0 }} <span class="fs-6 text-muted fw-normal">طالب</span></h4>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
     <!-- جدول آخر السجلات المضافة -->
     <div class="stat-card overflow-hidden">

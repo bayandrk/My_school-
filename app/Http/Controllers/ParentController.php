@@ -395,6 +395,50 @@ public function sendTeacherNote(Request $request, Child $child)
 
     return back()->with('success', 'تم حفظ وإرسال الملاحظة بنجاح.');
 }
+/** عرض صفحة علامات الطالب المستخرجة من جدول التقارير اليومية */
+    /** صفحة عرض علامات الطالب المستخرجة من جدول التقارير اليومية */
+    public function showChildGrades(Child $child)
+    {
+        $this->checkParent();
+
+        if ($child->parent_id !== auth()->id() || $child->status === 'archived') {
+            abort(403, 'غير مصرح لك بعرض بيانات هذا الطفل.');
+        }
+
+        $grades = $child->dailyChanges()
+            ->where('source', '!=', 'parent_note')
+            ->where('source', '!=', 'teacher_reply')
+            ->whereNull('parent_id')
+            ->whereNotNull('score')
+            ->orderBy('recorded_at', 'desc')
+            ->get();
+
+        return view('parent.child_grades', compact('child', 'grades'));
+    }
+
+    /** صفحة عرض ملاحظات المعلمة الخاصة بالطالب */
+    public function showChildNotes(Child $child)
+    {
+        $this->checkParent();
+
+        if ($child->parent_id !== auth()->id() || $child->status === 'archived') {
+            abort(403, 'غير مصرح لك بعرض بيانات هذا الطفل.');
+        }
+
+        // جلب السجلات التي تعتبر ملاحظات (وليس درجات امتحانات)
+        $notes = $child->dailyChanges()
+            ->where('source', '!=', 'parent_note')
+            ->where('source', '!=', 'teacher_reply')
+            ->whereNull('parent_id')
+            ->where(function($q) {
+                $q->whereNull('score')
+                  ->orWhere('score', '');
+            })
+            ->orderBy('recorded_at', 'desc')
+            ->get();
+
+        return view('parent.child_notes_list', compact('child', 'notes'));
+    }
 
     private function checkParent()
     {
